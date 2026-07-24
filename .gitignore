@@ -13,4 +13,6 @@ __pycache__/
 
 # OS-specific
 .DS_Store
-Thumbs.db
+Thumbs.dbdata/
+
+data/
