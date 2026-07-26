@@ -32,7 +32,9 @@ Respond with ONLY a valid JSON object matching EXACTLY this schema — no extra 
   "salary_min": number or null,
   "salary_max": number or null,
   "salary_currency": string or null (e.g. "EUR"),
-  "location": string or null,
+  "location": string or null (free-text location as written in the posting),
+  "country": string or null (country name if explicitly stated or clearly identifiable),
+  "city": string or null (city name if explicitly stated),
   "work_type": one of "onsite", "hybrid", "remote", "unknown",
   "has_nondiscrimination_disclaimer": true or false,
   "skills": array of strings (e.g. ["Python", "SQL"])

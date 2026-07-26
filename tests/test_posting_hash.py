@@ -57,6 +57,8 @@ def test_extract_and_save_calls_llm_when_new(monkeypatch):
         "salary_max": None,
         "salary_currency": None,
         "location": None,
+        "country": None,
+        "city": None,
         "work_type": "unknown",
         "has_nondiscrimination_disclaimer": False,
         "skills": ["Python"],

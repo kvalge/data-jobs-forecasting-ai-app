@@ -42,6 +42,8 @@ class JobPostingORM(Base):
     salary_max = Column(Float, nullable=True)
     salary_currency = Column(String, nullable=True)
     location = Column(String, nullable=True)
+    country = Column(String, nullable=True)
+    city = Column(String, nullable=True)
     work_type = Column(SAEnum(WorkType), nullable=False, default=WorkType.unknown)
     has_nondiscrimination_disclaimer = Column(Boolean, nullable=False, default=False)
     date_added = Column(Date, nullable=False, default=date.today)

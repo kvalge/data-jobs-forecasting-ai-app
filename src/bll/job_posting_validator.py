@@ -32,6 +32,8 @@ def validate_extraction_dto(dto: JobPostingExtractionDTO) -> JobPostingExtractio
         salary_max=dto.salary_max,
         salary_currency=dto.salary_currency,
         location=dto.location,
+        country=dto.country.strip() if dto.country and dto.country.strip() else None,
+        city=dto.city.strip() if dto.city and dto.city.strip() else None,
         work_type=dto.work_type,
         has_nondiscrimination_disclaimer=dto.has_nondiscrimination_disclaimer,
         skills=skills,

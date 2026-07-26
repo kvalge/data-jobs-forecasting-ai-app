@@ -18,7 +18,9 @@ class JobPostingExtractionDTO(BaseModel):
     salary_min: Optional[float] = Field(None, description="Minimum salary, if a range or single value is given")
     salary_max: Optional[float] = Field(None, description="Maximum salary, if a range is given")
     salary_currency: Optional[str] = Field(None, description="Currency code, e.g. EUR")
-    location: Optional[str] = Field(None, description="City/country stated in the posting")
+    location: Optional[str] = Field(None, description="Free-text location as stated in the posting")
+    country: Optional[str] = Field(None, description="Country stated in the posting, if identifiable")
+    city: Optional[str] = Field(None, description="City stated in the posting, if identifiable")
     work_type: WorkType = Field(WorkType.unknown, description="onsite / hybrid / remote")
     has_nondiscrimination_disclaimer: bool = Field(
         False, description="True if posting includes an equal opportunity / non-discrimination statement"

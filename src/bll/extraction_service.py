@@ -63,6 +63,8 @@ class ExtractionService:
             salary_max=dto.salary_max,
             salary_currency=dto.salary_currency,
             location=dto.location,
+            country=dto.country,
+            city=dto.city,
             work_type=dto.work_type,
             has_nondiscrimination_disclaimer=dto.has_nondiscrimination_disclaimer,
             skills=dto.skills,

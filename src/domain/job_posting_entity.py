@@ -19,6 +19,8 @@ class JobPostingEntity(BaseEntity):
     salary_max: float | None = None
     salary_currency: str | None = None
     location: str | None = None
+    country: str | None = None
+    city: str | None = None
     work_type: WorkType = WorkType.unknown
     has_nondiscrimination_disclaimer: bool = False
     skills: list[str] = field(default_factory=list)

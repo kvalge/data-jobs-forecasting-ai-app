@@ -1,10 +1,9 @@
 # main.py
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.bll.extraction_service import ExtractionService
+from src.bll.posting_ingest import ingest_posting_text
 from src.config import validate_config
-from src.dal.job_posting_repository import JobPostingRepository
-from src.dal.session import init_db, session_scope
+from src.dal.session import init_db
 
 
 def add_posting_flow() -> None:
@@ -21,25 +20,22 @@ def add_posting_flow() -> None:
         print("File is empty — skipping.")
         return
 
-    with session_scope() as session:
-        repository = JobPostingRepository(session)
-        service = ExtractionService(repository)
-        try:
-            result = service.extract_and_save(posting_text)
-            saved = result.entity
-            if result.created:
-                print(f"\nSaved posting: '{saved.role_title}' at '{saved.company_name}' (id={saved.id})")
-            else:
-                print(
-                    f"\nPosting already saved: '{saved.role_title}' at '{saved.company_name}' "
-                    f"(id={saved.id}) — skipped LLM extraction."
-                )
-        except ValueError as e:
-            print(f"\nExtraction failed: {e}")
-        except RuntimeError as e:
-            print(f"\nLLM request failed: {e}")
-        except SQLAlchemyError as e:
-            print(f"\nDatabase error: {e}")
+    try:
+        result = ingest_posting_text(posting_text)
+        saved = result.entity
+        if result.created:
+            print(f"\nSaved posting: '{saved.role_title}' at '{saved.company_name}' (id={saved.id})")
+        else:
+            print(
+                f"\nPosting already saved: '{saved.role_title}' at '{saved.company_name}' "
+                f"(id={saved.id}) — skipped LLM extraction."
+            )
+    except ValueError as e:
+        print(f"\nExtraction failed: {e}")
+    except RuntimeError as e:
+        print(f"\nLLM request failed: {e}")
+    except SQLAlchemyError as e:
+        print(f"\nDatabase error: {e}")
 
 
 def analysis_flow() -> None:
