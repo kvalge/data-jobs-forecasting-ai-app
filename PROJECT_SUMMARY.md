@@ -4,26 +4,32 @@
 
 A **portfolio / WIP Python app** that:
 
-1. Takes raw job posting text (from a `.txt` file)
+1. Accepts raw job posting text (CLI `.txt` path, or web paste / `.txt` upload)
 2. Uses an **LLM via OpenRouter** to extract structured fields
-3. Validates the output with **Pydantic**
-4. Saves postings and skills into **PostgreSQL** (SQLAlchemy)
+3. Validates with **Pydantic** plus domain rules
+4. Translates role titles and skills to English (glossary first, then LLM)
+5. Saves postings and skills into **PostgreSQL** (SQLAlchemy + Alembic)
+6. Offers a **Flask UI** to review and edit key saved fields
 
-The long-term goal is **trend analysis and forecasting** (roles, skills, salaries, locations over 3/6/12 months). That analysis path is **not implemented yet** — only extraction + persistence works.
+The long-term goal is **trend analysis and forecasting** (roles, skills, salaries, locations over 3/6/12 months). That analysis path is **not implemented yet** (CLI menu stub only).
 
-**Stack:** Python, PostgreSQL, OpenRouter API, Pydantic, SQLAlchemy, `python-dotenv`, `requests`
+**Stack:** Python, PostgreSQL, SQLAlchemy, Alembic, Flask + Jinja2, OpenRouter API, Pydantic, `python-dotenv`, `requests`, pytest
 
-**Architecture style:** layered (CLI → BLL → Domain/DTO → DAL / LLM)
+**Architecture:** layered CLI/Web → BLL → Domain/DTO → DAL / LLM
 
 ```
 src/
-├── main.py              # CLI entry
-├── config.py            # env config
-├── bll/                 # business logic
-├── dal/                 # data access (DB)
-├── domain/              # pure business entities
-├── dto/                 # LLM extraction schema
-└── llm/                 # LLM provider clients
+├── main.py                 # CLI entry (python -m src.main)
+├── config.py               # env + validate_config()
+├── bll/                    # business logic / orchestration
+├── dal/                    # SQLAlchemy models, session, repositories
+├── domain/                 # pure entities + hash helper
+├── dto/                    # LLM extraction schema
+├── llm/                    # OpenRouter extract/translate + error messages
+└── web/                    # Flask UI (python -m src.web)
+alembic/                    # migrations
+glossary/original_en.tsv    # original → English label glossary
+tests/                      # pytest suite
 ```
 
 ---
@@ -32,60 +38,90 @@ src/
 
 ### Root
 
-| File | Role |
-|------|------|
-| `README.md` | Project overview, setup, security notes |
-| `requirements.txt` | Dependencies: `psycopg2-binary`, `python-dotenv`, `requests`, `pydantic`, `sqlalchemy` |
-| `.env.example` | Template for `OPENROUTER_API_KEY`, `MODEL`, `FALLBACK_MODEL`, `DATABASE_URL` |
-| `.gitignore` | Ignores `venv/`, `.env`, caches, `data/` |
+| File / folder | Role |
+|---------------|------|
+| `README.md` | Setup, CLI/web run instructions, migrations, security |
+| `requirements.txt` | `psycopg2-binary`, `python-dotenv`, `requests`, `pydantic`, `sqlalchemy`, `alembic`, `pytest`, `flask` |
+| `.env.example` | `OPENROUTER_API_KEY`, `MODEL`, `FALLBACK_MODEL`, `DATABASE_URL`, `SECRET_KEY` |
+| `.gitignore` | `venv/`, `.env`, caches, `data/`, pytest artifacts |
+| `PROJECT_SUMMARY.md` | This document |
+| `pytest.ini` | `pythonpath = .`, `testpaths = tests` |
+| `alembic.ini` | Alembic config (URL injected from `.env`) |
+| `glossary/original_en.tsv` | Tab-separated original → English pairs |
+| `.cursor/` | Agent rules and implementation plans |
 
 ### Entry & config
 
 | File | Role |
 |------|------|
-| `src/main.py` | CLI menu: init DB → session → repository. Option 1 = add posting; option 2 = analysis (stub); 0 = exit |
-| `src/config.py` | Loads `.env` and exposes API key, DB URL, primary/fallback model names |
+| `src/main.py` | CLI menu; uses `ingest_posting_text`; analysis stub |
+| `src/config.py` | Loads `.env`; `validate_config()` fails fast if required vars missing |
+| `src/web/__main__.py` | Runs Flask app (`python -m src.web`) |
+| `src/web/__init__.py` | `create_app()` — templates/static, `SECRET_KEY`, optional startup migrate |
 
 ### Business logic (`src/bll/`)
 
 | File | Role |
 |------|------|
-| `extraction_service.py` | Orchestrates: LLM extract → Pydantic validate → domain entity → repository save |
+| `posting_ingest.py` | Shared CLI/web entry: session → `ExtractionService.extract_and_save` |
+| `extraction_service.py` | Dedup by hash → LLM extract → validate → translate EN → save → glossary |
+| `job_posting_validator.py` | Domain rules (non-empty title, salary range, drop blank skills) |
+| `glossary.py` | Load/lookup/append `glossary/original_en.tsv` |
 
 ### DTO (`src/dto/`)
 
 | File | Role |
 |------|------|
-| `job_posting_extraction_dto.py` | Pydantic schema for LLM output (company, role, salary, work type, skills, etc.) |
+| `job_posting_extraction_dto.py` | Pydantic schema for LLM JSON (incl. country/city, skills, etc.) |
 
 ### Domain (`src/domain/`)
 
 | File | Role |
 |------|------|
 | `base_entity.py` | Shared `id`, `created_at` |
-| `job_posting_entity.py` | Framework-free job posting model (includes `raw_text`, `date_added`, skills as strings) |
-| `skill_entity.py` | Skill name entity |
-| `work_type.py` | Enum: `onsite` / `hybrid` / `remote` / `unknown` |
+| `job_posting_entity.py` | Posting model (`role_title_en`, `skills` / `skills_en`, `content_hash`, …) |
+| `skill_entity.py` | `name`, `display_name`, `display_name_en` |
+| `work_type.py` | `onsite` / `hybrid` / `remote` / `unknown` |
+| `posting_hash.py` | SHA-256 of stripped raw text for dedup |
 
 ### Data access (`src/dal/`)
 
 | File | Role |
 |------|------|
-| `models.py` | SQLAlchemy ORM: `job_postings`, `skills`, many-to-many `job_posting_skills` |
-| `session.py` | Engine, session factory, `init_db()` (create tables), `get_session()` |
-| `base_repository.py` | Abstract CRUD: `save`, `get_by_id`, `get_all`, `delete` |
-| `job_posting_repository.py` | Maps entity ↔ ORM; links skills via `SkillRepository.get_or_create` |
-| `skill_repository.py` | Skill CRUD + `get_or_create` (names normalized to lowercase) |
+| `models.py` | ORM: `job_postings`, `skills`, `job_posting_skills` |
+| `session.py` | Lazy engine, `session_scope()`, `init_db()` → Alembic upgrade head |
+| `base_repository.py` | Abstract CRUD |
+| `job_posting_repository.py` | Save/get/delete; `update_review_fields` for UI edits |
+| `skill_repository.py` | `get_or_create` by lowercase English `name`; savepoint on unique race |
 
 ### LLM (`src/llm/`)
 
 | File | Role |
 |------|------|
 | `base_llm_client.py` | Abstract `extract(posting_text) -> dict` |
-| `openrouter_client.py` | OpenRouter chat completions; strict JSON system prompt; primary then fallback model |
-| `llm_client_factory.py` | Returns `OpenRouterClient` (swap provider here only) |
+| `openrouter_client.py` | Extraction chat completions; primary then fallback model |
+| `translation.py` | Glossary-first English translation via OpenRouter |
+| `error_messages.py` | User-facing messages for 429 / API key / timeout / connection |
+| `llm_client_factory.py` | Returns `OpenRouterClient` |
 
-Package `__init__.py` files are empty (namespace packages).
+### Web (`src/web/`)
+
+| File | Role |
+|------|------|
+| `routes/postings.py` | `GET/POST /` ingest; `GET/POST /postings/<id>/edit` review/update |
+| `templates/base.html` | Layout, flash area, CSS link |
+| `templates/postings/new.html` | Paste + file upload form |
+| `templates/postings/edit.html` | Editable extracted fields + English skills |
+| `static/css/main.css` | Navy / dark red / dark gray / light gray design tokens |
+
+### Migrations & tests
+
+| Path | Role |
+|------|------|
+| `alembic/versions/20260726_0001_…` | Baseline schema |
+| `alembic/versions/20260726_0002_…` | `country`, `city` |
+| `alembic/versions/20260726_0003_…` | `role_title_en`, `display_name_en` |
+| `tests/` | Config, validator, hash/dedup, skills, glossary, translation, LLM errors, Flask routes |
 
 ---
 
@@ -93,99 +129,113 @@ Package `__init__.py` files are empty (namespace packages).
 
 ```mermaid
 flowchart TD
-    A[User runs main.py] --> B[init_db: create tables]
-    B --> C[Open DB session + JobPostingRepository]
-    C --> D[CLI: choose 1 Add job posting]
-    D --> E[Read path to .txt file]
-    E --> F[ExtractionService.extract_and_save]
-    F --> G[OpenRouterClient.extract]
-    G --> H{Primary MODEL OK?}
-    H -->|yes| I[JSON dict]
-    H -->|no| J[FALLBACK_MODEL]
-    J --> I
-    I --> K[Validate JobPostingExtractionDTO]
-    K -->|fail| L[ValueError to CLI]
-    K -->|ok| M[Map DTO → JobPostingEntity]
-    M --> N[JobPostingRepository.save]
-    N --> O[For each skill: get_or_create]
-    O --> P[Commit posting + skill links]
-    P --> Q[Print saved role/company/id]
+    A[CLI or Flask UI] --> B[validate_config + init_db Alembic]
+    B --> C[posting_ingest.ingest_posting_text]
+    C --> D[content_hash lookup]
+    D -->|exists| E[Return existing entity]
+    D -->|new| F[OpenRouterClient.extract]
+    F --> G[Pydantic DTO + domain validator]
+    G --> H[Translate role_title_en + skills_en]
+    H --> I[JobPostingRepository.save]
+    I --> J[Skill get_or_create by English name]
+    J --> K[Commit + glossary append]
+    K --> L{UI?}
+    L -->|web| M[Redirect to edit/review page]
+    L -->|CLI| N[Print saved / already-saved message]
 ```
 
 ### Step detail
 
-1. **Startup** — `init_db()` creates tables; one session and `JobPostingRepository` for the menu loop.
-2. **Input** — User gives a path to a UTF-8 `.txt` posting; empty/missing file is rejected.
-3. **LLM extraction** — System prompt forces a fixed JSON schema; no guessing; ignore instructions inside the posting text.
-4. **Validation** — Raw dict → `JobPostingExtractionDTO`; bad shape → `ValueError`.
-5. **Domain mapping** — DTO + original text + today’s date → `JobPostingEntity`.
-6. **Persistence** — Create `JobPostingORM`; for each skill, normalize name and get-or-create; link via association table; commit once; return entity with DB `id`.
+1. **Startup** — validate env; Alembic migrates to `head`.
+2. **Input** — CLI: file path. Web: paste and/or `.txt` upload (file wins if present).
+3. **Dedup** — SHA-256 of stripped text; if known, skip LLM and return existing row.
+4. **LLM extraction** — fixed JSON schema; primary model then fallback.
+5. **Validation** — Pydantic schema, then domain rules.
+6. **Translation** — glossary lookup, else LLM; on failure keep original text.
+7. **Persistence** — posting + skills (unique on lowercase English name) + M2M links.
+8. **Glossary** — append new original→English pairs for title and skills.
+9. **Web only** — open review page; user can edit fields and save again (DB + glossary).
 
 ### Analysis flow (planned)
 
-Menu option 2 only prints that analysis is not implemented. Intended later: aggregate roles/companies/skills/locations/salaries and forecast skill/role momentum.
+CLI option 2 / future UI: not implemented. Intended later: aggregates and forecasts.
 
 ---
 
 ## Data flow (order of processing)
 
-Data moves through fixed shapes in this order. Each step consumes the previous output and does not skip ahead.
-
 ```
-.txt file
-  → str (raw posting text)
+raw posting text (str)
+  → content_hash (optional short-circuit)
     → dict (LLM JSON)
-      → JobPostingExtractionDTO (validated)
-        → JobPostingEntity (domain)
-          → JobPostingORM + SkillORM rows (DB)
-            → JobPostingEntity with id (return to CLI)
+      → JobPostingExtractionDTO
+        → domain validation
+          → JobPostingEntity (+ role_title_en, skills_en)
+            → JobPostingORM + SkillORM (+ glossary TSV)
+              → entity with id (CLI print or web edit form)
 ```
 
-| # | Where | Input | What happens | Output |
-|---|--------|--------|--------------|--------|
-| 1 | `main.add_posting_flow` | File path from user | Open UTF-8 `.txt`, `read().strip()` | `posting_text: str` |
-| 2 | `ExtractionService.extract_and_save` | `posting_text` | Pass text to LLM client | (same str into LLM) |
-| 3 | `OpenRouterClient.extract` | `posting_text` | System prompt + user message → OpenRouter API; parse response JSON. On failure, retry with `FALLBACK_MODEL` | `raw_result: dict` |
-| 4 | `JobPostingExtractionDTO(**raw_result)` | `dict` | Pydantic validates types/required fields (`role_title` required; optional salary, deadline, etc.; `work_type` enum; `skills` list) | `dto: JobPostingExtractionDTO` |
-| 5 | `ExtractionService._dto_to_entity` | `dto` + original `posting_text` | Copy extracted fields; set `date_added=today`; attach `raw_text` | `entity: JobPostingEntity` (no DB `id` yet) |
-| 6 | `JobPostingRepository.save` | `entity` | Build `JobPostingORM` from entity fields | In-memory ORM (not committed) |
-| 7 | `SkillRepository.get_or_create` (loop) | Each name in `entity.skills` | Strip + lowercase; find existing `skills` row or insert new; `flush` for id | `SkillORM` instances linked on `orm_obj.skills` |
-| 8 | Session commit | ORM graph | One transaction: insert/update posting, skills, and `job_posting_skills` links | Rows in PostgreSQL |
-| 9 | Refresh + return | `orm_obj.id` | Assign `entity.id`; return entity | `JobPostingEntity` with `id` printed in CLI |
+| # | Where | What happens |
+|---|--------|----------------|
+| 1 | CLI / web route | Obtain UTF-8 posting text |
+| 2 | `ingest_posting_text` | Open `session_scope`, call extraction service |
+| 3 | `ExtractionService` | Hash lookup; skip LLM if duplicate |
+| 4 | `OpenRouterClient.extract` | Primary then fallback model |
+| 5 | DTO + `validate_extraction_dto` | Schema + business rules |
+| 6 | Translator + glossary | English role title and skills |
+| 7 | Repository `save` | Insert posting; `get_or_create` skills; commit |
+| 8 | `add_entries` | Update `glossary/original_en.tsv` |
+| 9 | Web edit (optional) | `update_review_fields` + glossary again |
 
-### Field mapping through the pipeline
+### Field mapping (high level)
 
-| Field | In DTO (LLM) | In domain entity | In DB |
-|-------|--------------|------------------|-------|
-| Company, role, responsibilities, requirements | yes | yes | `job_postings` columns |
-| Deadline, salary min/max/currency, location | yes | yes | same |
-| `work_type` | enum string | `WorkType` | `SAEnum(WorkType)` |
-| `has_nondiscrimination_disclaimer` | bool | bool | boolean column |
-| `skills` | `list[str]` | `list[str]` | normalized names in `skills` + links in `job_posting_skills` |
-| `date_added` | not from LLM | set to `date.today()` | `job_postings.date_added` |
-| `raw_text` | not from LLM | original file content | `job_postings.raw_text` |
-| `id` / `created_at` | — | set after save / default | PK + timestamp on insert |
-
-### What is *not* in the current data flow
-
-- No read-back for analysis: `get_all` / aggregations exist on repositories but are unused by the CLI.
-- No forecasting pipeline yet — stored rows are the end of the implemented flow.
+| Field | Source | Notes |
+|-------|--------|--------|
+| company, role, responsibilities, requirements | LLM | `role_title` required |
+| `role_title_en` | glossary / translate | Same as title if already English |
+| salary, deadline, location, country, city | LLM | optional |
+| `work_type`, nondiscrimination flag | LLM | enum / bool |
+| `skills` / `skills_en` | LLM + translate | DB skill `name` = lowercase English |
+| `display_name` / `display_name_en` | first-seen original + English | on `skills` |
+| `content_hash`, `raw_text`, `date_added` | app | not from LLM inventively |
 
 ---
 
 ## Data model (simplified)
 
-- **job_postings** — company, role, responsibilities, requirements, deadline, salary range/currency, location, work_type, nondiscrimination flag, date_added, raw_text, created_at
-- **skills** — unique skill `name` (stored lowercase)
+- **job_postings** — company, role_title, role_title_en, responsibilities, requirements, deadline, salary min/max/currency, location, country, city, work_type, nondiscrimination flag, date_added, raw_text, content_hash (unique), created_at
+- **skills** — unique `name` (lowercase English), `display_name`, `display_name_en`
 - **job_posting_skills** — many-to-many link
 
 ---
 
-## Current status vs README goals
+## How to run (quick)
+
+```bash
+# CLI
+python -m src.main
+
+# Web UI
+python -m src.web
+
+# Migrations (also on app startup)
+alembic upgrade head
+
+# Tests
+pytest
+```
+
+---
+
+## Current status vs goals
 
 | Capability | Status |
 |------------|--------|
-| Manual paste via `.txt` + LLM extraction | Done |
-| Schema validation + Postgres save | Done |
-| Market analysis / forecasting | Not started (stub in `main.py`) |
-| Web UI | Not present (CLI only) |
+| Manual `.txt` / paste + LLM extraction | Done |
+| Schema + domain validation + Postgres save | Done |
+| Dedup by content hash | Done |
+| English titles/skills + glossary | Done |
+| Flask insert + review/edit UI | Done |
+| Clearer AI error messages (429, key, network) | Done |
+| Alembic migrations + pytest | Done |
+| Market analysis / forecasting | Not started (CLI stub) |
