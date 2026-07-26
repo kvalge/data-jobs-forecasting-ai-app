@@ -1,7 +1,7 @@
 # Plan: Fix major + medium shortcomings (excl. analysis/forecasting)
 
 **Created:** 2026-07-26  
-**Status:** In progress (Step 10 done)  
+**Status:** In progress (Step 11 done)  
 **Scope:** Address major and medium issues identified in project review.  
 **Out of scope:** Analysis / forecasting feature (menu option 2 remains a stub).
 
@@ -22,7 +22,7 @@
 | 8 | Deduplicate job postings | Done (2026-07-26) |
 | 9 | Harden LLM client errors | Done (2026-07-26) |
 | 10 | Document how to run the app | Done (2026-07-26) |
-| 11 | Add Alembic migrations | Pending |
+| 11 | Add Alembic migrations | Done (2026-07-26) |
 | 12 | Add focused tests | Pending |
 
 After each completed step: update this table + notes below, propose a git commit message in chat, then ask permission before the next step.
@@ -126,3 +126,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-26 (Step 8):** Dedup via SHA-256 `content_hash` of stripped `raw_text` (unique column). Lookup before LLM; `save` also short-circuits / handles IntegrityError. CLI reports already-saved vs newly created. ALTER documented in README.
 - **2026-07-26 (Step 9):** Hardened `OpenRouterClient`: clearer HTTP/shape/empty/non-JSON errors, strip markdown fences, broader fallback triggers (incl. HTTP RuntimeError). No API keys in error messages.
 - **2026-07-26 (Step 10):** README: Prerequisites, clearer venv activate per OS, example `DATABASE_URL`, and **Run** section with `python -m src.main` from project root plus short CLI usage notes.
+- **2026-07-26 (Step 11):** Added Alembic (`alembic.ini`, `alembic/env.py`, baseline revision `20260726_0001`). `init_db()` runs `alembic upgrade head` instead of `create_all`. Documented upgrade/stamp/autogenerate in README; `alembic` in requirements.txt.

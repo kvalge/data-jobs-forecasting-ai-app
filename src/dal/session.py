@@ -1,15 +1,19 @@
 # session.py
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 import src.config as config
-from src.dal.models import Base
 
 _engine: Engine | None = None
 _SessionLocal: sessionmaker[Session] | None = None
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def get_engine() -> Engine:
@@ -28,8 +32,18 @@ def get_engine() -> Engine:
 
 
 def init_db() -> None:
-    """Create all tables defined in models.py if they don't already exist."""
-    Base.metadata.create_all(bind=get_engine())
+    """Apply Alembic migrations up to head (preferred over create_all)."""
+    if not config.DATABASE_URL:
+        raise EnvironmentError(
+            "DATABASE_URL is not configured. Call validate_config() at startup."
+        )
+    alembic_cfg = Config(str(_PROJECT_ROOT / "alembic.ini"))
+    alembic_cfg.set_main_option("sqlalchemy.url", config.DATABASE_URL)
+    # Ensure script location resolves from project root
+    alembic_cfg.set_main_option("script_location", str(_PROJECT_ROOT / "alembic"))
+    command.upgrade(alembic_cfg, "head")
+    # Engine may be used after migrations
+    get_engine()
 
 
 def get_session() -> Session:

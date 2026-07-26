@@ -12,6 +12,7 @@ Once enough postings are collected, the app analyzes the data (most common roles
 
 - Python
 - PostgreSQL
+- SQLAlchemy + Alembic (schema migrations)
 - OpenRouter API (free-tier LLM) for structured extraction
 - Pydantic for schema validation
 
@@ -66,6 +67,12 @@ Job postings are entered manually (copy-paste), covering a broad range of search
 
    The app validates these at startup and exits with a clear error if any are missing or empty.
 
+4. Apply database migrations (also runs automatically when you start the app):
+
+   ```bash
+   alembic upgrade head
+   ```
+
 ## Run
 
 From the **project root** (with the venv activated and `.env` configured):
@@ -74,7 +81,7 @@ From the **project root** (with the venv activated and `.env` configured):
 python -m src.main
 ```
 
-You should see the CLI menu:
+Startup applies Alembic migrations to `head`, then shows the CLI menu:
 
 ```
 === Job Market Analyzer ===
@@ -85,21 +92,22 @@ You should see the CLI menu:
 
 - **Add job posting:** enter a path to a UTF-8 `.txt` file containing the posting text (e.g. `data/sample_posting.txt`). The app extracts fields via the LLM and saves them to PostgreSQL. Re-submitting the same text skips extraction (deduplicated by content hash).
 - **Run analysis:** not implemented yet (stub).
-- Tables are created automatically on startup if they do not exist (`create_all`). See schema notes below if you already have an older database.
+
+## Database migrations (Alembic)
+
+Schema changes live under `alembic/versions/`. Prefer new Alembic revisions over editing the DB by hand.
+
+| Situation | Command |
+|-----------|---------|
+| Fresh or outdated DB | `alembic upgrade head` (or just run `python -m src.main`) |
+| DB already matches current models, but Alembic history is missing | `alembic stamp head` |
+| Create a new revision after model changes | `alembic revision --autogenerate -m "describe change"` then review the file |
 
 ## Database schema notes
 
 - Skills store a normalized unique `name` (lowercase) plus a `display_name` (first-seen casing) for reports/UI.
 - Job postings store a unique `content_hash` (SHA-256 of stripped raw text). Re-submitting the same text returns the existing row and skips LLM extraction.
-- `create_all` only creates missing tables; it does **not** add new columns to existing tables. If you already have tables from an earlier schema, run the needed ALTERs (or drop/recreate a throwaway local DB):
-
-  ```sql
-  ALTER TABLE skills ADD COLUMN display_name VARCHAR;
-  ALTER TABLE job_postings ADD COLUMN content_hash VARCHAR(64);
-  CREATE UNIQUE INDEX IF NOT EXISTS ix_job_postings_content_hash ON job_postings (content_hash);
-  ```
-
-  Migrations (Alembic) are planned separately.
+- Baseline migration: `alembic/versions/20260726_0001_baseline_schema.py`.
 
 ## Security notes
 
