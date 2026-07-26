@@ -1,7 +1,7 @@
 # Plan: Fix major + medium shortcomings (excl. analysis/forecasting)
 
 **Created:** 2026-07-26  
-**Status:** In progress (Step 9 done)  
+**Status:** In progress (Step 10 done)  
 **Scope:** Address major and medium issues identified in project review.  
 **Out of scope:** Analysis / forecasting feature (menu option 2 remains a stub).
 
@@ -21,7 +21,7 @@
 | 7 | Domain validation after LLM | Done (2026-07-26) |
 | 8 | Deduplicate job postings | Done (2026-07-26) |
 | 9 | Harden LLM client errors | Done (2026-07-26) |
-| 10 | Document how to run the app | Pending |
+| 10 | Document how to run the app | Done (2026-07-26) |
 | 11 | Add Alembic migrations | Pending |
 | 12 | Add focused tests | Pending |
 
@@ -125,3 +125,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-26 (Step 7):** Added `src/bll/job_posting_validator.py`: non-empty `role_title`, `salary_min <= salary_max` when both set, drop blank skills. Wired into `ExtractionService` after Pydantic validation.
 - **2026-07-26 (Step 8):** Dedup via SHA-256 `content_hash` of stripped `raw_text` (unique column). Lookup before LLM; `save` also short-circuits / handles IntegrityError. CLI reports already-saved vs newly created. ALTER documented in README.
 - **2026-07-26 (Step 9):** Hardened `OpenRouterClient`: clearer HTTP/shape/empty/non-JSON errors, strip markdown fences, broader fallback triggers (incl. HTTP RuntimeError). No API keys in error messages.
+- **2026-07-26 (Step 10):** README: Prerequisites, clearer venv activate per OS, example `DATABASE_URL`, and **Run** section with `python -m src.main` from project root plus short CLI usage notes.
