@@ -14,6 +14,7 @@ def test_export_model_results_markdown_orders_by_value(tmp_path):
             "models": ["rf"],
             "elapsed_seconds": 1.2,
             "model_timings_seconds": {"rf": 1.1},
+            "data_source": "fake",
             "roles": ["Data Analyst"],
             "skills": ["Python"],
         },
@@ -47,6 +48,8 @@ def test_export_model_results_markdown_orders_by_value(tmp_path):
     )
     text = out.read_text(encoding="utf-8")
     assert "Prediction model results" in text
+    assert "Fake / synthetic" in text
+    assert "historical" in text.lower()
     assert "4124" in text  # salary rounded to whole number
     # Higher role value appears before lower within the rf table
     high_pos = text.index("High")

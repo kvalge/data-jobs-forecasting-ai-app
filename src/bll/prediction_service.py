@@ -400,6 +400,7 @@ def run_prediction(
         "training_window_months": window,
         "elapsed_seconds": elapsed,
         "model_timings_seconds": model_timings,
+        "data_source": src.name,
         "status": status,
         "error_count": len(errors),
     }

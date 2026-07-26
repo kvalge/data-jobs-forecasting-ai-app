@@ -2,13 +2,18 @@
 
 Auto-generated when you run **Prediction** in the web UI or CLI. Rows within each model are ordered by predicted value (highest first).
 
-- **Generated at:** 2026-07-26T23:55:03
+- **Generated at:** 2026-07-27T00:02:42
 - **Run id:** 2
 - **Status:** completed
+- **Training data source:** Fake / synthetic series (`data/fake/` CSVs)
 - **Training window (months):** 24
 - **Horizons:** 3
 - **Models:** baseline, prophet, sarima, arima, rf, hgb
 - **Elapsed (seconds):** 744.239
+
+## Training data
+
+Models were trained on generated job-market aggregates (not live PostgreSQL postings). Regenerate with `python scripts/generate_fake_job_market.py`. Switch later with `PREDICTION_DATA_SOURCE=database` when `DatabaseSource` is implemented.
 
 ## Time per model
 
@@ -21,10 +26,12 @@ Auto-generated when you run **Prediction** in the web UI or CLI. Rows within eac
 | `rf` | 4.702 |
 | `hgb` | 4.39 |
 
-## Training shortlist (historical top-K, not model ranking)
+## Top roles & top skills (historical shortlist)
 
-- **Roles used as forecast targets:** Data Analyst, Data Engineer, Data Scientist, ML Engineer, Analytics Engineer, AI Engineer, BI Developer, MLOps Engineer, Research Scientist, Product Analyst, Backend Engineer, Platform Engineer, Data Platform Engineer, NLP Engineer, Computer Vision Engineer
-- **Skills used as forecast targets:** Python, SQL, Spark, Airflow, dbt, Tableau, Power BI, AWS, GCP, Azure, Kubernetes, TensorFlow, Docker, PyTorch, scikit-learn
+These lists are **not** the models' forecast of future popularity. Before forecasting, roles and skills are ranked by **historical posting volume** inside the training window (highest count first); the top K (default 15) become the forecast targets. Every selected model then runs on that same shortlist. Order below = historical volume, not predicted rank.
+
+- **Top roles (historical):** Data Analyst, Data Engineer, Data Scientist, ML Engineer, Analytics Engineer, AI Engineer, BI Developer, MLOps Engineer, Research Scientist, Product Analyst, Backend Engineer, Platform Engineer, Data Platform Engineer, NLP Engineer, Computer Vision Engineer
+- **Top skills (historical):** Python, SQL, Spark, Airflow, dbt, Tableau, Power BI, AWS, GCP, Azure, Kubernetes, TensorFlow, Docker, PyTorch, scikit-learn
 
 ## Model: `arima`
 

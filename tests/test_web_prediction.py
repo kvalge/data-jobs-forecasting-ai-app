@@ -64,6 +64,7 @@ def test_post_prediction_runs_service(client, monkeypatch):
             "training_window_months": 12,
             "elapsed_seconds": 0.1,
             "model_timings_seconds": {"baseline": 0.1},
+            "data_source": "fake",
             "error_count": 0,
             "roles": ["Data Engineer"],
             "skills": ["Python"],
@@ -84,4 +85,6 @@ def test_post_prediction_runs_service(client, monkeypatch):
     )
     assert response.status_code == 200
     assert b"Prediction run #7" in response.data
+    assert b"historical" in response.data.lower() or b"Historical" in response.data
+    assert b"Fake" in response.data or b"fake" in response.data
     runner.assert_called_once()

@@ -12,7 +12,7 @@ Once enough postings are collected, the app analyzes the data (most common roles
 
 [Latest prediction model results](docs/prediction/model_results.md)
 
-Charts below are generated from the database when you run **Analysis** in the web UI (`/analysis`). PNGs are written to `docs/analysis/` and overwritten on each run. Prediction runs also refresh `docs/prediction/model_results.md`.
+Charts below are generated from the database when you run **Analysis** in the web UI (`/analysis`). PNGs are written to `docs/analysis/` and overwritten on each run. Prediction runs also refresh `docs/prediction/model_results.md` (includes whether models trained on **fake** `data/fake/` series or **database** aggregates, plus what “top roles / top skills” means).
 
 ### Top companies
 
@@ -143,7 +143,7 @@ Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`).
 - After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and English skills.
 - Saving edits updates the database and appends original→English pairs to `glossary/original_en.tsv` (also used before LLM translation).
 - Open **Analysis** (`/analysis`) to query top companies, top English roles, salary min/avg/max (nulls excluded), and top English skills. Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).
-- Open **Prediction** (`/prediction`) to run baseline trend analysis and classical/ML forecasts for popular roles, skills, and average salary per role. Choose training window, horizons, and one/some/all models; outcomes are stored in PostgreSQL.
+- Open **Prediction** (`/prediction`) to run baseline trend analysis and classical/ML forecasts for popular roles, skills, and average salary per role. Choose training window, horizons, and one/some/all models; outcomes are stored in PostgreSQL. The “Top roles / Top skills” lines on the results page are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
 - Success, duplicate, and error messages appear as flash banners.
 - The CLI remains fully functional alongside the web UI.
 

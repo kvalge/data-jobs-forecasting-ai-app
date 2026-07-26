@@ -57,6 +57,25 @@ def export_model_results_markdown(
             )
         )
 
+    data_source = (summary.get("data_source") or "unknown").strip().lower()
+    if data_source == "fake":
+        data_source_label = "Fake / synthetic series (`data/fake/` CSVs)"
+        data_source_note = (
+            "Models were trained on generated job-market aggregates "
+            "(not live PostgreSQL postings). Regenerate with "
+            "`python scripts/generate_fake_job_market.py`. "
+            "Switch later with `PREDICTION_DATA_SOURCE=database` when "
+            "`DatabaseSource` is implemented."
+        )
+    elif data_source == "database":
+        data_source_label = "Real database aggregates (PostgreSQL `job_postings` / skills)"
+        data_source_note = (
+            "Models were trained on series built from saved job postings in the database."
+        )
+    else:
+        data_source_label = summary.get("data_source") or "—"
+        data_source_note = "See `PREDICTION_DATA_SOURCE` in `.env`."
+
     lines: list[str] = [
         "# Prediction model results",
         "",
@@ -66,10 +85,15 @@ def export_model_results_markdown(
         f"- **Generated at:** {datetime.now().isoformat(timespec='seconds')}",
         f"- **Run id:** {run_id if run_id is not None else '—'}",
         f"- **Status:** {status}",
+        f"- **Training data source:** {data_source_label}",
         f"- **Training window (months):** {summary.get('training_window_months', '—')}",
         f"- **Horizons:** {', '.join(str(h) for h in summary.get('horizons') or []) or '—'}",
         f"- **Models:** {', '.join(summary.get('models') or []) or '—'}",
         f"- **Elapsed (seconds):** {summary.get('elapsed_seconds', '—')}",
+        "",
+        "## Training data",
+        "",
+        data_source_note,
         "",
     ]
 
@@ -86,12 +110,21 @@ def export_model_results_markdown(
     roles = summary.get("roles") or []
     skills = summary.get("skills") or []
     if roles or skills:
-        lines.append("## Training shortlist (historical top-K, not model ranking)")
+        lines.append("## Top roles & top skills (historical shortlist)")
+        lines.append("")
+        lines.append(
+            "These lists are **not** the models' forecast of future popularity. "
+            "Before forecasting, roles and skills are ranked by **historical posting "
+            "volume** inside the training window (highest count first); the top K "
+            "(default 15) become the forecast targets. Every selected model then "
+            "runs on that same shortlist. Order below = historical volume, not "
+            "predicted rank."
+        )
         lines.append("")
         if roles:
-            lines.append(f"- **Roles used as forecast targets:** {', '.join(roles)}")
+            lines.append(f"- **Top roles (historical):** {', '.join(roles)}")
         if skills:
-            lines.append(f"- **Skills used as forecast targets:** {', '.join(skills)}")
+            lines.append(f"- **Top skills (historical):** {', '.join(skills)}")
         lines.append("")
 
     if not by_model:

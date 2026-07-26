@@ -57,6 +57,18 @@
     <tbody>
       <tr><th>Run id</th><td>{{ outcome.run_id }}</td></tr>
       <tr><th>Status</th><td>{{ outcome.status }}</td></tr>
+      <tr>
+        <th>Training data</th>
+        <td>
+          {% if outcome.summary.data_source == 'fake' %}
+            Fake / synthetic series (<code>data/fake/</code>)
+          {% elif outcome.summary.data_source == 'database' %}
+            Real database aggregates (PostgreSQL job postings)
+          {% else %}
+            {{ outcome.summary.data_source or "—" }}
+          {% endif %}
+        </td>
+      </tr>
       <tr><th>Models</th><td>{{ outcome.summary.models|join(', ') }}</td></tr>
       <tr><th>Horizons</th><td>{{ outcome.summary.horizons|join(', ') }}</td></tr>
       <tr><th>Window</th><td>{{ outcome.summary.training_window_months }} months</td></tr>
@@ -77,11 +89,22 @@
     </tbody>
   </table>
   {% endif %}
+  {% if outcome.summary.roles or outcome.summary.skills %}
+  <h3>Top roles &amp; top skills (what this means)</h3>
+  <p class="hint">
+    These lists are <strong>not</strong> the models' forecast ranking of what will be most popular.
+    Before forecasting, the app ranks roles and skills by
+    <strong>historical posting volume</strong> inside the selected training window
+    (highest count first) and takes the top K (default 15).
+    Every selected model then forecasts <em>those same targets</em>.
+    Order below = historical popularity in the training data, not predicted future rank.
+  </p>
   {% if outcome.summary.roles %}
-  <p class="hint"><strong>Top roles:</strong> {{ outcome.summary.roles|join(', ') }}</p>
+  <p class="hint"><strong>Top roles (historical shortlist):</strong> {{ outcome.summary.roles|join(', ') }}</p>
   {% endif %}
   {% if outcome.summary.skills %}
-  <p class="hint"><strong>Top skills:</strong> {{ outcome.summary.skills|join(', ') }}</p>
+  <p class="hint"><strong>Top skills (historical shortlist):</strong> {{ outcome.summary.skills|join(', ') }}</p>
+  {% endif %}
   {% endif %}
 </section>
 {% endif %}

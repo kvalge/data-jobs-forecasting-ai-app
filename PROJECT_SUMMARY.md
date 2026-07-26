@@ -9,13 +9,13 @@ A **portfolio / WIP Python app** that:
 3. Validates with **Pydantic** plus domain rules
 4. Translates role titles and skills to English (glossary first, then LLM)
 5. Saves postings and skills into **PostgreSQL** (SQLAlchemy + Alembic)
-6. Offers a **Flask UI** to review and edit key saved fields
+6. Offers a **Flask UI** to review/edit postings, run descriptive analysis, and run forecasts
+7. Runs **descriptive analysis** (top companies/roles/skills, salary stats) and PNG chart export
+8. Runs **time series prediction** (baseline + Prophet/SARIMA/ARIMA/RF/HGB) on fake series today, with a switch for future DB aggregates
 
-The long-term goal is **trend analysis and forecasting** (roles, skills, salaries, locations over 3/6/12 months). That analysis path is **not implemented yet** (CLI menu stub only).
+**Stack:** Python, PostgreSQL, SQLAlchemy, Alembic, Flask + Jinja2, OpenRouter API, Pydantic, pandas/numpy/scikit-learn/statsmodels/Prophet, matplotlib, `python-dotenv`, `requests`, pytest
 
-**Stack:** Python, PostgreSQL, SQLAlchemy, Alembic, Flask + Jinja2, OpenRouter API, Pydantic, `python-dotenv`, `requests`, pytest
-
-**Architecture:** layered CLI/Web → BLL → Domain/DTO → DAL / LLM
+**Architecture:** layered CLI/Web → BLL → Domain/DTO → DAL / LLM / prediction
 
 ```
 src/
@@ -26,8 +26,12 @@ src/
 ├── domain/                 # pure entities + hash helper
 ├── dto/                    # LLM extraction schema
 ├── llm/                    # OpenRouter extract/translate + error messages
+├── prediction/             # data sources, baseline, forecast model adapters
 └── web/                    # Flask UI (python -m src.web)
 alembic/                    # migrations
+scripts/                    # fake job-market generator
+docs/analysis/              # analysis PNG charts
+docs/prediction/            # exported model_results.md
 glossary/original_en.tsv    # original → English label glossary
 tests/                      # pytest suite
 ```
@@ -40,24 +44,26 @@ tests/                      # pytest suite
 
 | File / folder | Role |
 |---------------|------|
-| `README.md` | Setup, CLI/web run instructions, migrations, security |
-| `requirements.txt` | `psycopg2-binary`, `python-dotenv`, `requests`, `pydantic`, `sqlalchemy`, `alembic`, `pytest`, `flask` |
-| `.env.example` | `OPENROUTER_API_KEY`, `MODEL`, `FALLBACK_MODEL`, `DATABASE_URL`, `SECRET_KEY` |
+| `README.md` | Setup, CLI/web run, analysis charts, prediction notes, migrations |
+| `requirements.txt` | Core stack + Flask, matplotlib, pandas, sklearn, statsmodels, prophet |
+| `.env.example` | API/DB/models/`SECRET_KEY`/`PREDICTION_DATA_SOURCE` |
 | `.gitignore` | `venv/`, `.env`, caches, `data/`, pytest artifacts |
 | `PROJECT_SUMMARY.md` | This document |
 | `pytest.ini` | `pythonpath = .`, `testpaths = tests` |
 | `alembic.ini` | Alembic config (URL injected from `.env`) |
 | `glossary/original_en.tsv` | Tab-separated original → English pairs |
+| `scripts/generate_fake_job_market.py` | Builds `data/fake/` series for forecasting |
+| `docs/prediction/model_results.md` | Latest prediction export (training source + results) |
 | `.cursor/` | Agent rules and implementation plans |
 
 ### Entry & config
 
 | File | Role |
 |------|------|
-| `src/main.py` | CLI menu; uses `ingest_posting_text`; analysis stub |
-| `src/config.py` | Loads `.env`; `validate_config()` fails fast if required vars missing |
+| `src/main.py` | CLI menu; posting ingest + prediction prompts |
+| `src/config.py` | Loads `.env`; `validate_config()`; `PREDICTION_DATA_SOURCE` |
 | `src/web/__main__.py` | Runs Flask app (`python -m src.web`) |
-| `src/web/__init__.py` | `create_app()` — templates/static, `SECRET_KEY`, optional startup migrate |
+| `src/web/__init__.py` | `create_app()` — blueprints for postings, analysis, prediction |
 
 ### Business logic (`src/bll/`)
 
@@ -67,6 +73,10 @@ tests/                      # pytest suite
 | `extraction_service.py` | Dedup by hash → LLM extract → validate → translate EN → save → glossary |
 | `job_posting_validator.py` | Domain rules (non-empty title, salary range, drop blank skills) |
 | `glossary.py` | Load/lookup/append `glossary/original_en.tsv` |
+| `analysis_service.py` | Descriptive aggregates (top companies/roles/skills, salary stats) |
+| `chart_export.py` | matplotlib PNGs under `docs/analysis/` |
+| `prediction_service.py` | Orchestrates baseline + forecast models; timings; persist run |
+| `prediction_export.py` | Writes `docs/prediction/model_results.md` |
 
 ### DTO (`src/dto/`)
 
@@ -88,11 +98,22 @@ tests/                      # pytest suite
 
 | File | Role |
 |------|------|
-| `models.py` | ORM: `job_postings`, `skills`, `job_posting_skills` |
+| `models.py` | ORM: postings, skills, `forecast_runs`, `forecast_results` |
 | `session.py` | Lazy engine, `session_scope()`, `init_db()` → Alembic upgrade head |
 | `base_repository.py` | Abstract CRUD |
 | `job_posting_repository.py` | Save/get/delete; `update_review_fields` for UI edits |
 | `skill_repository.py` | `get_or_create` by lowercase English `name`; savepoint on unique race |
+| `forecast_repository.py` | Persist/list prediction runs and results |
+
+### Prediction (`src/prediction/`)
+
+| File | Role |
+|------|------|
+| `data_source.py` | Protocol + `get_data_source()` factory |
+| `fake_file_source.py` | Loads monthly/weekly aggregates from `data/fake/` |
+| `database_source.py` | Future DB aggregates (not implemented yet) |
+| `baseline/` | MA, growth, market share, linear trend |
+| `models/` | Prophet, SARIMA, ARIMA, RF, HGB adapters |
 
 ### LLM (`src/llm/`)
 
@@ -109,9 +130,13 @@ tests/                      # pytest suite
 | File | Role |
 |------|------|
 | `routes/postings.py` | `GET/POST /` ingest; `GET/POST /postings/<id>/edit` review/update |
-| `templates/base.html` | Layout, flash area, CSS link |
+| `routes/analysis.py` | `GET/POST /analysis` descriptive queries + chart export |
+| `routes/prediction.py` | `GET/POST /prediction` forecast UI |
+| `templates/base.html` | Layout, nav, flash area, CSS link |
 | `templates/postings/new.html` | Paste + file upload form |
 | `templates/postings/edit.html` | Editable extracted fields + English skills |
+| `templates/analysis.html` | Analysis form + result tables |
+| `templates/prediction.html` | Prediction form + run summary (incl. shortlist meaning) |
 | `static/css/main.css` | Navy / dark red / dark gray / light gray design tokens |
 
 ### Migrations & tests
@@ -121,7 +146,8 @@ tests/                      # pytest suite
 | `alembic/versions/20260726_0001_…` | Baseline schema |
 | `alembic/versions/20260726_0002_…` | `country`, `city` |
 | `alembic/versions/20260726_0003_…` | `role_title_en`, `display_name_en` |
-| `tests/` | Config, validator, hash/dedup, skills, glossary, translation, LLM errors, Flask routes |
+| `alembic/versions/20260726_0004_…` | `forecast_runs`, `forecast_results` |
+| `tests/` | Config, ingest, analysis, prediction, Flask routes, exports |
 
 ---
 
@@ -156,9 +182,19 @@ flowchart TD
 8. **Glossary** — append new original→English pairs for title and skills.
 9. **Web only** — open review page; user can edit fields and save again (DB + glossary).
 
-### Analysis flow (planned)
+### Descriptive analysis flow
 
-CLI option 2 / future UI: not implemented. Intended later: aggregates and forecasts.
+1. Web `/analysis` — choose companies / roles / salary / skills and top N.
+2. `analysis_service` queries PostgreSQL; null salaries excluded per metric.
+3. Results shown as tables; matching PNGs written to `docs/analysis/` (README embeds them).
+
+### Prediction / forecasting flow
+
+1. CLI menu 2 or web `/prediction` — choose training window (12/24/36), horizons (3/6/12), models (one/some/all).
+2. Data source from `PREDICTION_DATA_SOURCE`: **`fake`** (default, `data/fake/` aggregates) or **`database`** (stub until implemented).
+3. Historical top-K roles/skills by posting volume become forecast targets (UI labels these “Top roles / Top skills”; not model ranking).
+4. Baseline + selected models forecast role demand, skill demand, and avg salary per role.
+5. Soft-fail per series; save `forecast_runs` / `forecast_results`; export `docs/prediction/model_results.md`.
 
 ---
 
@@ -206,12 +242,17 @@ raw posting text (str)
 - **job_postings** — company, role_title, role_title_en, responsibilities, requirements, deadline, salary min/max/currency, location, country, city, work_type, nondiscrimination flag, date_added, raw_text, content_hash (unique), created_at
 - **skills** — unique `name` (lowercase English), `display_name`, `display_name_en`
 - **job_posting_skills** — many-to-many link
+- **forecast_runs** — training window, horizons, models, status, meta (incl. timings, data source)
+- **forecast_results** — per run/model/target/horizon predicted values
 
 ---
 
 ## How to run (quick)
 
 ```bash
+# Fake series for prediction (optional refresh)
+python scripts/generate_fake_job_market.py
+
 # CLI
 python -m src.main
 
@@ -238,4 +279,6 @@ pytest
 | Flask insert + review/edit UI | Done |
 | Clearer AI error messages (429, key, network) | Done |
 | Alembic migrations + pytest | Done |
-| Market analysis / forecasting | Not started (CLI stub) |
+| Descriptive analysis UI + README charts | Done |
+| Forecasting (fake data source + multi-model + persist/export) | Done |
+| Forecasting on live DB aggregates | Stub (`DatabaseSource` / `PREDICTION_DATA_SOURCE=database`) |
