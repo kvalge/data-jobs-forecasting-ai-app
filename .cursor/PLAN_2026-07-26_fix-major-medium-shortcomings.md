@@ -1,7 +1,7 @@
 # Plan: Fix major + medium shortcomings (excl. analysis/forecasting)
 
 **Created:** 2026-07-26  
-**Status:** In progress (Step 4 done)  
+**Status:** In progress (Step 5 done)  
 **Scope:** Address major and medium issues identified in project review.  
 **Out of scope:** Analysis / forecasting feature (menu option 2 remains a stub).
 
@@ -16,7 +16,7 @@
 | 2 | Session-per-operation + rollback | Done (2026-07-26) |
 | 3 | Catch LLM/DB errors in CLI | Done (2026-07-26) |
 | 4 | Map `created_at` on entity read | Done (2026-07-26) |
-| 5 | Safer skill `get_or_create` | Pending |
+| 5 | Safer skill `get_or_create` | Done (2026-07-26) |
 | 6 | Preserve skill display casing | Pending |
 | 7 | Domain validation after LLM | Pending |
 | 8 | Deduplicate job postings | Pending |
@@ -120,3 +120,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-26 (Step 2):** Added `session_scope()` context manager (rollback on error, always close). `add_posting_flow` opens a fresh session per save instead of one session for the whole CLI. `JobPostingRepository.save` rolls back if `commit` fails.
 - **2026-07-26 (Step 3):** `add_posting_flow` now catches `ValueError` (schema), `RuntimeError` (LLM), and `SQLAlchemyError` (DB) and prints clear messages instead of unhandled tracebacks.
 - **2026-07-26 (Step 4):** `JobPostingRepository._to_entity` and `save` now copy `created_at` from ORM. `SkillORM` has no `created_at` column, so skill mapping unchanged.
+- **2026-07-26 (Step 5):** `SkillRepository.get_or_create` uses a savepoint (`begin_nested`) and on `IntegrityError` re-queries by normalized name so concurrent inserts do not break the outer transaction.

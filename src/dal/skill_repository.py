@@ -1,4 +1,5 @@
 # skill_repository.py
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.dal.base_repository import BaseRepository
@@ -37,13 +38,33 @@ class SkillRepository(BaseRepository[SkillEntity]):
     def get_or_create(self, name: str) -> SkillORM:
         """Return the existing SkillORM for this name, or create a new one.
 
+        Uses a savepoint so a unique-constraint race does not poison the
+        outer transaction (e.g. an in-progress job posting save).
+
         Returns the ORM object (not the domain entity), since job_posting_repository
         needs the actual ORM instance to attach to the many-to-many relationship.
         """
         normalized_name = name.strip().lower()
-        orm_obj = self.session.query(SkillORM).filter(SkillORM.name == normalized_name).first()
-        if orm_obj is None:
-            orm_obj = SkillORM(name=normalized_name)
-            self.session.add(orm_obj)
-            self.session.flush()
-        return orm_obj
+        existing = (
+            self.session.query(SkillORM)
+            .filter(SkillORM.name == normalized_name)
+            .first()
+        )
+        if existing is not None:
+            return existing
+
+        try:
+            with self.session.begin_nested():
+                orm_obj = SkillORM(name=normalized_name)
+                self.session.add(orm_obj)
+                self.session.flush()
+            return orm_obj
+        except IntegrityError:
+            existing = (
+                self.session.query(SkillORM)
+                .filter(SkillORM.name == normalized_name)
+                .first()
+            )
+            if existing is None:
+                raise
+            return existing
