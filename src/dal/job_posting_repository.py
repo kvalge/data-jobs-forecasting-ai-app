@@ -47,6 +47,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             raise
 
         entity.id = orm_obj.id
+        entity.created_at = orm_obj.created_at
         return entity
 
 
@@ -70,6 +71,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         """Convert an ORM object back into a pure domain entity."""
         return JobPostingEntity(
             id=orm_obj.id,
+            created_at=orm_obj.created_at,
             company_name=orm_obj.company_name,
             role_title=orm_obj.role_title,
             responsibilities=orm_obj.responsibilities,
