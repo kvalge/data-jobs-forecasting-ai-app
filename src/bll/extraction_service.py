@@ -10,6 +10,7 @@ from src.domain.job_posting_entity import JobPostingEntity
 from src.domain.posting_hash import hash_posting_text
 from src.dto.job_posting_extraction_dto import JobPostingExtractionDTO
 from src.llm.llm_client_factory import get_llm_client
+from src.llm.translation import OpenRouterTranslator, get_translator
 
 
 @dataclass(frozen=True)
@@ -21,9 +22,14 @@ class ExtractAndSaveResult:
 class ExtractionService:
     """Orchestrates: LLM extraction -> validation -> domain entity -> persistence."""
 
-    def __init__(self, job_posting_repository: JobPostingRepository):
+    def __init__(
+        self,
+        job_posting_repository: JobPostingRepository,
+        translator: OpenRouterTranslator | None = None,
+    ):
         self.job_posting_repository = job_posting_repository
         self.llm_client = get_llm_client()
+        self.translator = translator or get_translator()
 
     def extract_and_save(self, posting_text: str) -> ExtractAndSaveResult:
         content_hash = hash_posting_text(posting_text)
@@ -53,9 +59,13 @@ class ExtractionService:
         posting_text: str,
         content_hash: str,
     ) -> JobPostingEntity:
+        role_title_en = self.translator.to_english(dto.role_title)
+        skills_en = [self.translator.to_english(skill) for skill in dto.skills]
+
         return JobPostingEntity(
             company_name=dto.company_name,
             role_title=dto.role_title,
+            role_title_en=role_title_en,
             responsibilities=dto.responsibilities,
             requirements=dto.requirements,
             application_deadline=dto.application_deadline,
@@ -68,6 +78,7 @@ class ExtractionService:
             work_type=dto.work_type,
             has_nondiscrimination_disclaimer=dto.has_nondiscrimination_disclaimer,
             skills=dto.skills,
+            skills_en=skills_en,
             date_added=date.today(),
             raw_text=posting_text,
             content_hash=content_hash,

@@ -129,10 +129,11 @@ Schema changes live under `alembic/versions/`. Prefer new Alembic revisions over
 
 ## Database schema notes
 
-- Skills store a normalized unique `name` (lowercase) plus a `display_name` (first-seen casing) for reports/UI.
+- Skills store a normalized unique `name` (lowercase English), `display_name` (first-seen original label), and `display_name_en` (English).
+- Job postings store `role_title` plus `role_title_en` (English; same value when already English).
 - Job postings store a unique `content_hash` (SHA-256 of stripped raw text). Re-submitting the same text returns the existing row and skips LLM extraction.
 - Baseline migration: `alembic/versions/20260726_0001_baseline_schema.py`.
-- `job_postings` also has optional `country` and `city` (migration `20260726_0002`).
+- Later revisions: `20260726_0002` (country/city), `20260726_0003` (role_title_en, display_name_en).
 
 ## Security notes
 

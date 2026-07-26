@@ -12,6 +12,7 @@ class JobPostingEntity(BaseEntity):
 
     company_name: str | None = None
     role_title: str = ""
+    role_title_en: str | None = None
     responsibilities: str | None = None
     requirements: str | None = None
     application_deadline: date | None = None
@@ -24,6 +25,8 @@ class JobPostingEntity(BaseEntity):
     work_type: WorkType = WorkType.unknown
     has_nondiscrimination_disclaimer: bool = False
     skills: list[str] = field(default_factory=list)
+    # Parallel to skills: English labels used for skill dedup / display_name_en on save
+    skills_en: list[str] = field(default_factory=list)
     date_added: date | None = None
     raw_text: str | None = None
     content_hash: str | None = None

@@ -35,6 +35,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         orm_obj = JobPostingORM(
             company_name=entity.company_name,
             role_title=entity.role_title,
+            role_title_en=entity.role_title_en or entity.role_title,
             responsibilities=entity.responsibilities,
             requirements=entity.requirements,
             application_deadline=entity.application_deadline,
@@ -51,14 +52,21 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             content_hash=entity.content_hash,
         )
 
-        # link skills — get_or_create returns SkillORM instances directly
-        for skill_name in entity.skills:
-            skill_orm = self.skill_repository.get_or_create(skill_name)
+        for index, skill_name in enumerate(entity.skills):
+            skill_en = (
+                entity.skills_en[index]
+                if index < len(entity.skills_en)
+                else skill_name
+            )
+            skill_orm = self.skill_repository.get_or_create(
+                skill_name,
+                display_name_en=skill_en,
+            )
             orm_obj.skills.append(skill_orm)
 
         self.session.add(orm_obj)
         try:
-            self.session.commit()  # posting + linked skills in one transaction
+            self.session.commit()
             self.session.refresh(orm_obj)
         except IntegrityError:
             self.session.rollback()
@@ -73,6 +81,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
 
         entity.id = orm_obj.id
         entity.created_at = orm_obj.created_at
+        entity.role_title_en = orm_obj.role_title_en
         return entity
 
     def get_by_id(self, entity_id: int) -> JobPostingEntity | None:
@@ -98,6 +107,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             created_at=orm_obj.created_at,
             company_name=orm_obj.company_name,
             role_title=orm_obj.role_title,
+            role_title_en=orm_obj.role_title_en or orm_obj.role_title,
             responsibilities=orm_obj.responsibilities,
             requirements=orm_obj.requirements,
             application_deadline=orm_obj.application_deadline,
@@ -110,6 +120,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             work_type=WorkType(orm_obj.work_type),
             has_nondiscrimination_disclaimer=orm_obj.has_nondiscrimination_disclaimer,
             skills=[(s.display_name or s.name) for s in orm_obj.skills],
+            skills_en=[(s.display_name_en or s.display_name or s.name) for s in orm_obj.skills],
             date_added=orm_obj.date_added,
             raw_text=orm_obj.raw_text,
             content_hash=orm_obj.content_hash,

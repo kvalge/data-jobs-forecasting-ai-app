@@ -35,6 +35,8 @@ class JobPostingORM(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     company_name = Column(String, nullable=True)
     role_title = Column(String, nullable=False)
+    # English form of role_title (same as role_title when already English)
+    role_title_en = Column(String, nullable=True)
     responsibilities = Column(Text, nullable=True)
     requirements = Column(Text, nullable=True)
     application_deadline = Column(Date, nullable=True)
@@ -59,9 +61,11 @@ class SkillORM(Base):
     __tablename__ = "skills"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    # Normalized unique key for lookup/dedup (lowercase)
+    # Normalized unique key for lookup/dedup (lowercase English)
     name = Column(String, nullable=False, unique=True)
-    # First-seen casing for UI/reports; falls back to name when null (legacy rows)
+    # First-seen original casing/language for UI/reports
     display_name = Column(String, nullable=True)
+    # English form of the skill label (same as display_name when already English)
+    display_name_en = Column(String, nullable=True)
 
     job_postings = relationship("JobPostingORM", secondary=job_posting_skills, back_populates="skills")

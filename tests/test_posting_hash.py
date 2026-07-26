@@ -45,7 +45,10 @@ def test_extract_and_save_calls_llm_when_new(monkeypatch):
     saved = JobPostingEntity(id=1, role_title="Dev", content_hash=hash_posting_text(content))
     repo.save.return_value = saved
 
-    service = ExtractionService(repo)
+    translator = MagicMock()
+    translator.to_english.side_effect = lambda text: text
+
+    service = ExtractionService(repo, translator=translator)
     service.llm_client = MagicMock()
     service.llm_client.extract.return_value = {
         "company_name": "Co",
@@ -69,3 +72,6 @@ def test_extract_and_save_calls_llm_when_new(monkeypatch):
     assert result.created is True
     service.llm_client.extract.assert_called_once_with(content)
     repo.save.assert_called_once()
+    saved_entity = repo.save.call_args.args[0]
+    assert saved_entity.role_title_en == "Dev"
+    assert saved_entity.skills_en == ["Python"]
