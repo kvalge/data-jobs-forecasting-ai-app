@@ -4,6 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from src.bll.posting_ingest import ingest_posting_text
 from src.config import validate_config
 from src.dal.session import init_db
+from src.llm.error_messages import format_llm_failure_for_user
 
 
 def add_posting_flow() -> None:
@@ -33,7 +34,7 @@ def add_posting_flow() -> None:
     except ValueError as e:
         print(f"\nExtraction failed: {e}")
     except RuntimeError as e:
-        print(f"\nLLM request failed: {e}")
+        print(f"\n{format_llm_failure_for_user(e)}")
     except SQLAlchemyError as e:
         print(f"\nDatabase error: {e}")
 

@@ -8,6 +8,7 @@ from src.bll.posting_ingest import ingest_posting_text
 from src.dal.job_posting_repository import JobPostingRepository
 from src.dal.session import session_scope
 from src.domain.work_type import WorkType
+from src.llm.error_messages import format_llm_failure_for_user
 
 postings_bp = Blueprint("postings", __name__)
 
@@ -74,7 +75,7 @@ def create_posting():
     except ValueError as e:
         flash(f"Extraction failed: {e}", "error")
     except RuntimeError as e:
-        flash(f"LLM request failed: {e}", "error")
+        flash(format_llm_failure_for_user(e), "error")
     except SQLAlchemyError as e:
         flash(f"Database error: {e}", "error")
 

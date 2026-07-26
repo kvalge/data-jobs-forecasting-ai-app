@@ -7,6 +7,7 @@ import requests
 
 import src.config as config
 from src.bll.glossary import lookup_english
+from src.llm.error_messages import describe_http_status, describe_request_exception
 from src.llm.openrouter_client import (
     OPENROUTER_URL,
     OpenRouterClient,
@@ -69,8 +70,10 @@ class OpenRouterTranslator:
         except requests.HTTPError as e:
             status = e.response.status_code if e.response is not None else "unknown"
             raise RuntimeError(
-                f"OpenRouter HTTP {status} for model '{model_name}'"
+                describe_http_status(status, model_name, e.response)
             ) from e
+        except requests.RequestException as e:
+            raise RuntimeError(describe_request_exception(e, model_name)) from e
 
         try:
             data = response.json()

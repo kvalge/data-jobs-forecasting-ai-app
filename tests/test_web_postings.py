@@ -57,6 +57,24 @@ def test_post_empty_shows_error_flash(client):
     assert b"Provide posting text" in response.data
 
 
+def test_post_llm_429_shows_clear_flash(client, monkeypatch):
+    monkeypatch.setattr(
+        postings_routes,
+        "ingest_posting_text",
+        MagicMock(
+            side_effect=RuntimeError(
+                "Both primary and fallback AI models failed. "
+                "Primary (a): AI rate limit or free-tier quota reached for model 'a' (HTTP 429). "
+                "Fallback (b): AI rate limit or free-tier quota reached for model 'b' (HTTP 429)."
+            )
+        ),
+    )
+    response = client.post("/", data={"posting_text": "some posting"}, follow_redirects=True)
+    assert response.status_code == 200
+    assert b"rate limit" in response.data.lower() or b"free-tier" in response.data.lower()
+    assert b"OpenRouter HTTP 429 for model" not in response.data
+
+
 def test_post_paste_success_redirects_to_edit(client, monkeypatch):
     entity = JobPostingEntity(
         id=1,

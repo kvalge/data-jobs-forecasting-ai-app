@@ -5,6 +5,7 @@ import requests
 
 import src.config as config
 from src.llm.base_llm_client import BaseLLMClient
+from src.llm.error_messages import describe_http_status, describe_request_exception
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -75,8 +76,10 @@ class OpenRouterClient(BaseLLMClient):
         except requests.HTTPError as e:
             status = e.response.status_code if e.response is not None else "unknown"
             raise RuntimeError(
-                f"OpenRouter HTTP {status} for model '{model_name}'"
+                describe_http_status(status, model_name, e.response)
             ) from e
+        except requests.RequestException as e:
+            raise RuntimeError(describe_request_exception(e, model_name)) from e
 
         try:
             data = response.json()
@@ -135,6 +138,7 @@ class OpenRouterClient(BaseLLMClient):
                 return self._call_model(config.FALLBACK_MODEL, posting_text)
             except _RECOVERABLE_ERRORS as fallback_error:
                 raise RuntimeError(
-                    f"Both primary ({config.MODEL}) and fallback ({config.FALLBACK_MODEL}) models failed. "
-                    f"Primary error: {primary_error}. Fallback error: {fallback_error}"
+                    f"Both primary and fallback AI models failed. "
+                    f"Primary ({config.MODEL}): {primary_error} "
+                    f"Fallback ({config.FALLBACK_MODEL}): {fallback_error}"
                 ) from fallback_error
