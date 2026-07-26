@@ -1,4 +1,7 @@
 # session.py
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -34,3 +37,16 @@ def get_session() -> Session:
     get_engine()
     assert _SessionLocal is not None
     return _SessionLocal()
+
+
+@contextmanager
+def session_scope() -> Iterator[Session]:
+    """One session per operation: rollback on error, always close."""
+    session = get_session()
+    try:
+        yield session
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

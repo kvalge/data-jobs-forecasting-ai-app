@@ -39,11 +39,16 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             orm_obj.skills.append(skill_orm)
 
         self.session.add(orm_obj)
-        self.session.commit()  # commits the job posting + all linked skills as one transaction
-        self.session.refresh(orm_obj)
+        try:
+            self.session.commit()  # posting + linked skills in one transaction
+            self.session.refresh(orm_obj)
+        except Exception:
+            self.session.rollback()
+            raise
 
         entity.id = orm_obj.id
         return entity
+
 
     def get_by_id(self, entity_id: int) -> JobPostingEntity | None:
         orm_obj = self.session.get(JobPostingORM, entity_id)
