@@ -63,6 +63,7 @@ def test_post_prediction_runs_service(client, monkeypatch):
             "horizons": [3],
             "training_window_months": 12,
             "elapsed_seconds": 0.1,
+            "model_timings_seconds": {"baseline": 0.1},
             "error_count": 0,
             "roles": ["Data Engineer"],
             "skills": ["Python"],

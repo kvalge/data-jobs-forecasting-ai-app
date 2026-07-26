@@ -84,7 +84,12 @@ def prediction_flow() -> None:
     print(f"\nRun id: {outcome.run_id}")
     print(f"Status: {outcome.status}")
     print(f"Results: {outcome.summary.get('n_results')}")
-    print(f"Elapsed: {outcome.summary.get('elapsed_seconds')} s")
+    print(f"Elapsed total: {outcome.summary.get('elapsed_seconds')} s")
+    timings = outcome.summary.get("model_timings_seconds") or {}
+    if timings:
+        print("Time per model:")
+        for name, secs in timings.items():
+            print(f"  {name}: {secs} s")
     if outcome.errors:
         print(f"Warnings: {len(outcome.errors)}")
         for key, msg in list(outcome.errors.items())[:8]:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -19,6 +20,39 @@ from src.prediction.models.registry import ALL_RUNNABLE, MODEL_KEYS, get_forecas
 ALLOWED_WINDOWS = (12, 24, 36)
 ALLOWED_HORIZONS = (3, 6, 12)
 DEFAULT_TOP_K = 15
+
+logger = logging.getLogger(__name__)
+
+_NOISY_LOGGERS_QUIETED = False
+
+
+def _quiet_third_party_logs() -> None:
+    """Reduce Prophet / cmdstan noise so progress lines stay readable."""
+    global _NOISY_LOGGERS_QUIETED
+    if _NOISY_LOGGERS_QUIETED:
+        return
+    for name in (
+        "prophet",
+        "prophet.plot",
+        "cmdstanpy",
+        "stan",
+    ):
+        logging.getLogger(name).setLevel(logging.WARNING)
+    _NOISY_LOGGERS_QUIETED = True
+
+
+def _ensure_logging() -> None:
+    """Make sure INFO progress lines appear in the terminal (CLI / Flask)."""
+    root = logging.getLogger()
+    if not root.handlers:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(levelname)s [%(name)s] %(message)s",
+        )
+    elif root.level > logging.INFO:
+        root.setLevel(logging.INFO)
+    # Keep our package logger at INFO even if root is noisier/quieter
+    logger.setLevel(logging.INFO)
 
 
 @dataclass
@@ -68,6 +102,13 @@ def _entity_series(
     return to_month_series(sub.rename(columns={value_col: "value"}), "value")
 
 
+def _fmt_seconds(seconds: float) -> str:
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes, secs = divmod(seconds, 60)
+    return f"{int(minutes)}m {secs:.1f}s"
+
+
 def run_prediction(
     *,
     training_window_months: int = 24,
@@ -79,6 +120,9 @@ def run_prediction(
     source: DataSource | None = None,
 ) -> PredictionRunOutcome:
     """Run selected analyses and optionally save to forecast_* tables."""
+    _ensure_logging()
+    _quiet_third_party_logs()
+
     window = _normalize_window(training_window_months)
     horizon_list = _normalize_horizons(horizons)
     model_list = _normalize_models(models)
@@ -89,6 +133,16 @@ def run_prediction(
     errors: dict[str, str] = {}
     result_rows: list[dict[str, Any]] = []
     baseline_report: dict[str, Any] | None = None
+    model_timings: dict[str, float] = {}
+
+    logger.info(
+        "Prediction start | source=%s window=%sm horizons=%s models=%s top_k=%s",
+        src.name,
+        window,
+        horizon_list,
+        model_list,
+        top_k,
+    )
 
     monthly_roles = src.slice_training_window(src.load_monthly_roles(), window)
     weekly_roles = src.slice_training_window(src.load_weekly_roles(), min(window * 5, 200))
@@ -108,7 +162,20 @@ def run_prediction(
     )
     skill_keys = skill_ranked["display_name_en"].head(top_k).tolist()
 
+    forecast_models = [m for m in model_list if m in MODEL_KEYS]
+    series_per_forecast_model = len(role_keys) * 2 + len(skill_keys)
+    total_series = series_per_forecast_model * len(forecast_models)
+    logger.info(
+        "Loaded data | roles=%d skills=%d | forecast models=%d | series to fit≈%d",
+        len(role_keys),
+        len(skill_keys),
+        len(forecast_models),
+        total_series,
+    )
+
     if "baseline" in model_list:
+        logger.info("Starting model baseline…")
+        t_model = time.perf_counter()
         try:
             baseline_report = run_baseline_analysis(
                 monthly_roles=monthly_roles,
@@ -155,21 +222,47 @@ def run_prediction(
                 )
         except Exception as e:  # noqa: BLE001
             errors["baseline"] = str(e)
+            logger.warning("baseline failed: %s", e)
+        model_timings["baseline"] = round(time.perf_counter() - t_model, 3)
+        logger.info(
+            "Finished model baseline in %s",
+            _fmt_seconds(model_timings["baseline"]),
+        )
 
-    forecast_models = [m for m in model_list if m in MODEL_KEYS]
-    for model_key in forecast_models:
+    for model_idx, model_key in enumerate(forecast_models, start=1):
+        logger.info(
+            "Starting model %s (%d/%d) | ~%d series…",
+            model_key,
+            model_idx,
+            len(forecast_models),
+            series_per_forecast_model,
+        )
+        t_model = time.perf_counter()
         try:
             forecaster = get_forecaster(model_key)
         except Exception as e:  # noqa: BLE001
             errors[model_key] = str(e)
+            model_timings[model_key] = round(time.perf_counter() - t_model, 3)
+            logger.warning("Could not create forecaster %s: %s", model_key, e)
             continue
 
+        done = 0
+
         # Roles demand + salary per role
-        for role in role_keys:
+        for role_i, role in enumerate(role_keys, start=1):
+            logger.info(
+                "[%s] role demand %d/%d: %s",
+                model_key,
+                role_i,
+                len(role_keys),
+                role,
+            )
             series = _entity_series(monthly_roles, "role_title_en", role, "posting_count")
             outcome = forecaster.forecast(series, max_horizon)
+            done += 1
             if outcome.error:
                 errors[f"{model_key}:role:{role}"] = outcome.error
+                logger.warning("[%s] role %s failed: %s", model_key, role, outcome.error)
             else:
                 for i, point in enumerate(outcome.points, start=1):
                     result_rows.append(
@@ -184,6 +277,13 @@ def run_prediction(
                         }
                     )
 
+            logger.info(
+                "[%s] role salary %d/%d: %s",
+                model_key,
+                role_i,
+                len(role_keys),
+                role,
+            )
             sub = monthly_roles[monthly_roles["role_title_en"] == role][
                 ["period_start", "avg_salary"]
             ].copy()
@@ -201,8 +301,12 @@ def run_prediction(
             salary_series = salary_series.reindex(full_idx).interpolate().bfill().ffill()
 
             salary_out = forecaster.forecast(salary_series, max_horizon)
+            done += 1
             if salary_out.error:
                 errors[f"{model_key}:salary:{role}"] = salary_out.error
+                logger.warning(
+                    "[%s] salary %s failed: %s", model_key, role, salary_out.error
+                )
             else:
                 for i, point in enumerate(salary_out.points, start=1):
                     result_rows.append(
@@ -218,11 +322,20 @@ def run_prediction(
                     )
 
         # Skills demand
-        for skill in skill_keys:
+        for skill_i, skill in enumerate(skill_keys, start=1):
+            logger.info(
+                "[%s] skill %d/%d: %s",
+                model_key,
+                skill_i,
+                len(skill_keys),
+                skill,
+            )
             series = _entity_series(monthly_skills, "display_name_en", skill, "posting_count")
             outcome = forecaster.forecast(series, max_horizon)
+            done += 1
             if outcome.error:
                 errors[f"{model_key}:skill:{skill}"] = outcome.error
+                logger.warning("[%s] skill %s failed: %s", model_key, skill, outcome.error)
                 continue
             for i, point in enumerate(outcome.points, start=1):
                 result_rows.append(
@@ -237,6 +350,14 @@ def run_prediction(
                     }
                 )
 
+        model_timings[model_key] = round(time.perf_counter() - t_model, 3)
+        logger.info(
+            "Finished model %s in %s (%d series attempted)",
+            model_key,
+            _fmt_seconds(model_timings[model_key]),
+            done,
+        )
+
     # Filter stored forecast points to selected horizons only (keep baseline horizon 0)
     filtered_rows = []
     for row in result_rows:
@@ -247,6 +368,11 @@ def run_prediction(
     result_rows = filtered_rows
 
     elapsed = round(time.perf_counter() - t0, 3)
+    logger.info("── Model timings ──")
+    for name, secs in model_timings.items():
+        logger.info("  %s: %s", name, _fmt_seconds(secs))
+    logger.info("  TOTAL: %s", _fmt_seconds(elapsed))
+
     meta = {
         "data_source": src.name,
         "manifest": src.load_manifest(),
@@ -257,6 +383,7 @@ def run_prediction(
         "horizons": horizon_list,
         "models_requested": model_list,
         "elapsed_seconds": elapsed,
+        "model_timings_seconds": model_timings,
         "errors": errors,
         "baseline": baseline_report,
         "completed_at": datetime.now().isoformat(timespec="seconds"),
@@ -271,12 +398,15 @@ def run_prediction(
         "horizons": horizon_list,
         "training_window_months": window,
         "elapsed_seconds": elapsed,
+        "model_timings_seconds": model_timings,
         "status": status,
         "error_count": len(errors),
     }
 
     run_id = None
     if persist:
+        logger.info("Saving run to database…")
+        t_save = time.perf_counter()
         with session_scope() as session:
             repo = ForecastRepository(session)
             run_id = repo.save_run(
@@ -290,5 +420,21 @@ def run_prediction(
             )
             session.commit()
         summary["run_id"] = run_id
+        logger.info(
+            "Saved run_id=%s in %s | status=%s results=%d warnings=%d",
+            run_id,
+            _fmt_seconds(time.perf_counter() - t_save),
+            status,
+            len(result_rows),
+            len(errors),
+        )
+    else:
+        logger.info(
+            "Prediction finished (not persisted) | status=%s results=%d warnings=%d | total %s",
+            status,
+            len(result_rows),
+            len(errors),
+            _fmt_seconds(elapsed),
+        )
 
     return PredictionRunOutcome(run_id=run_id, status=status, summary=summary, errors=errors)

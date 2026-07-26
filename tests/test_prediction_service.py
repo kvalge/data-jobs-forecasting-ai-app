@@ -51,4 +51,8 @@ def test_run_prediction_baseline_and_rf_without_db(tmp_path, monkeypatch):
     assert outcome.run_id == 99
     assert outcome.status in ("completed", "completed_with_errors")
     assert outcome.summary["n_results"] > 0
+    assert "model_timings_seconds" in outcome.summary
+    assert "baseline" in outcome.summary["model_timings_seconds"]
+    assert "rf" in outcome.summary["model_timings_seconds"]
+    assert outcome.summary["elapsed_seconds"] >= 0
     repo.save_run.assert_called_once()

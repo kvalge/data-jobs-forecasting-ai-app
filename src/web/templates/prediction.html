@@ -61,10 +61,22 @@
       <tr><th>Horizons</th><td>{{ outcome.summary.horizons|join(', ') }}</td></tr>
       <tr><th>Window</th><td>{{ outcome.summary.training_window_months }} months</td></tr>
       <tr><th>Result rows</th><td>{{ outcome.summary.n_results }}</td></tr>
-      <tr><th>Elapsed</th><td>{{ outcome.summary.elapsed_seconds }} s</td></tr>
+      <tr><th>Elapsed (total)</th><td>{{ outcome.summary.elapsed_seconds }} s</td></tr>
       <tr><th>Warnings</th><td>{{ outcome.summary.error_count }}</td></tr>
     </tbody>
   </table>
+  {% if outcome.summary.model_timings_seconds %}
+  <h3>Time per model</h3>
+  <table class="data-table">
+    <thead><tr><th>Model</th><th>Seconds</th></tr></thead>
+    <tbody>
+      {% for name, secs in outcome.summary.model_timings_seconds.items() %}
+      <tr><td><code>{{ name }}</code></td><td>{{ "%.3f"|format(secs) }}</td></tr>
+      {% endfor %}
+      <tr><th>Total</th><th>{{ outcome.summary.elapsed_seconds }}</th></tr>
+    </tbody>
+  </table>
+  {% endif %}
   {% if outcome.summary.roles %}
   <p class="hint"><strong>Top roles:</strong> {{ outcome.summary.roles|join(', ') }}</p>
   {% endif %}
