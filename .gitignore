@@ -13,6 +13,11 @@ __pycache__/
 
 # OS-specific
 .DS_Store
-Thumbs.dbdata/
+Thumbs.db
 
 data/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/

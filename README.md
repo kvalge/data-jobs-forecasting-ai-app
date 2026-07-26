@@ -93,6 +93,16 @@ Startup applies Alembic migrations to `head`, then shows the CLI menu:
 - **Add job posting:** enter a path to a UTF-8 `.txt` file containing the posting text (e.g. `data/sample_posting.txt`). The app extracts fields via the LLM and saves them to PostgreSQL. Re-submitting the same text skips extraction (deduplicated by content hash).
 - **Run analysis:** not implemented yet (stub).
 
+## Run tests
+
+From the project root (venv activated):
+
+```bash
+pytest
+```
+
+Tests cover config validation, domain rules, content-hash dedup (LLM mocked), and skill get-or-create. They do not call OpenRouter or require PostgreSQL.
+
 ## Database migrations (Alembic)
 
 Schema changes live under `alembic/versions/`. Prefer new Alembic revisions over editing the DB by hand.
