@@ -3,6 +3,7 @@ from datetime import date
 
 from pydantic import ValidationError
 
+from src.bll.job_posting_validator import validate_extraction_dto
 from src.dal.job_posting_repository import JobPostingRepository
 from src.domain.job_posting_entity import JobPostingEntity
 from src.dto.job_posting_extraction_dto import JobPostingExtractionDTO
@@ -23,6 +24,11 @@ class ExtractionService:
             dto = JobPostingExtractionDTO(**raw_result)
         except ValidationError as e:
             raise ValueError(f"LLM output failed schema validation: {e}") from e
+
+        try:
+            dto = validate_extraction_dto(dto)
+        except ValueError as e:
+            raise ValueError(f"LLM output failed domain validation: {e}") from e
 
         entity = self._dto_to_entity(dto, posting_text)
 
