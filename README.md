@@ -43,6 +43,15 @@ Job postings are entered manually (copy-paste), covering a broad range of search
    \`\`\`
    The app validates these at startup and exits with a clear error if any are missing or empty.
 
+## Database schema notes
+
+- Skills store a normalized unique `name` (lowercase) plus a `display_name` (first-seen casing) for reports/UI.
+- `create_all` only creates missing tables; it does **not** add new columns to existing tables. If you already have a `skills` table without `display_name`, run:
+  ```sql
+  ALTER TABLE skills ADD COLUMN display_name VARCHAR;
+  ```
+  Or drop/recreate the tables in a throwaway local database. Migrations (Alembic) are planned separately.
+
 ## Security notes
 
 - API keys and database credentials are kept in `.env`, excluded from version control via `.gitignore`.

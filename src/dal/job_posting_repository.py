@@ -83,7 +83,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             location=orm_obj.location,
             work_type=WorkType(orm_obj.work_type),
             has_nondiscrimination_disclaimer=orm_obj.has_nondiscrimination_disclaimer,
-            skills=[s.name for s in orm_obj.skills],
+            skills=[(s.display_name or s.name) for s in orm_obj.skills],
             date_added=orm_obj.date_added,
             raw_text=orm_obj.raw_text,
         )

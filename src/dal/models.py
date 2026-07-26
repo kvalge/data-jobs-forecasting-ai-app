@@ -55,6 +55,9 @@ class SkillORM(Base):
     __tablename__ = "skills"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    # Normalized unique key for lookup/dedup (lowercase)
     name = Column(String, nullable=False, unique=True)
+    # First-seen casing for UI/reports; falls back to name when null (legacy rows)
+    display_name = Column(String, nullable=True)
 
     job_postings = relationship("JobPostingORM", secondary=job_posting_skills, back_populates="skills")
