@@ -100,6 +100,61 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             self.session.delete(orm_obj)
             self.session.commit()
 
+    def update_review_fields(
+        self,
+        entity_id: int,
+        *,
+        company_name: str | None,
+        role_title: str,
+        role_title_en: str | None,
+        salary_min: float | None,
+        salary_max: float | None,
+        work_type: WorkType,
+        has_nondiscrimination_disclaimer: bool,
+        location: str | None,
+        country: str | None,
+        city: str | None,
+        skills_en: list[str],
+    ) -> JobPostingEntity:
+        """Update UI-editable fields and replace linked skills by English names."""
+        orm_obj = self.session.get(JobPostingORM, entity_id)
+        if orm_obj is None:
+            raise ValueError(f"Job posting not found: id={entity_id}")
+
+        role = role_title.strip()
+        if not role:
+            raise ValueError("role_title is required and cannot be empty")
+
+        role_en = (role_title_en or role).strip() or role
+
+        orm_obj.company_name = company_name.strip() if company_name and company_name.strip() else None
+        orm_obj.role_title = role
+        orm_obj.role_title_en = role_en
+        orm_obj.salary_min = salary_min
+        orm_obj.salary_max = salary_max
+        orm_obj.work_type = work_type
+        orm_obj.has_nondiscrimination_disclaimer = has_nondiscrimination_disclaimer
+        orm_obj.location = location.strip() if location and location.strip() else None
+        orm_obj.country = country.strip() if country and country.strip() else None
+        orm_obj.city = city.strip() if city and city.strip() else None
+
+        orm_obj.skills.clear()
+        for skill_en in skills_en:
+            label = skill_en.strip()
+            if not label:
+                continue
+            skill_orm = self.skill_repository.get_or_create(label, display_name_en=label)
+            orm_obj.skills.append(skill_orm)
+
+        try:
+            self.session.commit()
+            self.session.refresh(orm_obj)
+        except Exception:
+            self.session.rollback()
+            raise
+
+        return self._to_entity(orm_obj)
+
     def _to_entity(self, orm_obj: JobPostingORM) -> JobPostingEntity:
         """Convert an ORM object back into a pure domain entity."""
         return JobPostingEntity(

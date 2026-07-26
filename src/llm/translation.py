@@ -6,6 +6,7 @@ import json
 import requests
 
 import src.config as config
+from src.bll.glossary import lookup_english
 from src.llm.openrouter_client import (
     OPENROUTER_URL,
     OpenRouterClient,
@@ -25,10 +26,14 @@ class OpenRouterTranslator:
         self._parser = OpenRouterClient()
 
     def to_english(self, text: str) -> str:
-        """Return English text; on failure return the original stripped text."""
+        """Return English text; glossary first, then LLM; on failure return original."""
         original = (text or "").strip()
         if not original:
             return original
+
+        from_glossary = lookup_english(original)
+        if from_glossary:
+            return from_glossary
 
         try:
             return self._translate_with_fallback(original)

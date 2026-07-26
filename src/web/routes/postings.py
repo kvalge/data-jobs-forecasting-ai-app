@@ -3,7 +3,11 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.bll.glossary import add_entries, pairs_from_posting
 from src.bll.posting_ingest import ingest_posting_text
+from src.dal.job_posting_repository import JobPostingRepository
+from src.dal.session import session_scope
+from src.domain.work_type import WorkType
 
 postings_bp = Blueprint("postings", __name__)
 
@@ -19,6 +23,26 @@ def _resolve_posting_text() -> str:
             raise ValueError("Uploaded file must be UTF-8 text") from e
 
     return (request.form.get("posting_text") or "").strip()
+
+
+def _optional_str(name: str) -> str | None:
+    value = (request.form.get(name) or "").strip()
+    return value or None
+
+
+def _optional_float(name: str) -> float | None:
+    raw = (request.form.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError as e:
+        raise ValueError(f"{name} must be a number") from e
+
+
+def _parse_skills_en() -> list[str]:
+    raw = request.form.get("skills_en") or ""
+    return [line.strip() for line in raw.splitlines() if line.strip()]
 
 
 @postings_bp.get("/")
@@ -46,6 +70,7 @@ def create_posting():
                 f"(id={saved.id}) — skipped LLM extraction.",
                 "info",
             )
+        return redirect(url_for("postings.edit_posting", posting_id=saved.id))
     except ValueError as e:
         flash(f"Extraction failed: {e}", "error")
     except RuntimeError as e:
@@ -54,3 +79,68 @@ def create_posting():
         flash(f"Database error: {e}", "error")
 
     return redirect(url_for("postings.new_posting"))
+
+
+@postings_bp.get("/postings/<int:posting_id>/edit")
+def edit_posting(posting_id: int):
+    with session_scope() as session:
+        repository = JobPostingRepository(session)
+        posting = repository.get_by_id(posting_id)
+
+    if posting is None:
+        flash(f"Job posting not found (id={posting_id})", "error")
+        return redirect(url_for("postings.new_posting"))
+
+    return render_template(
+        "postings/edit.html",
+        posting=posting,
+        work_types=list(WorkType),
+    )
+
+
+@postings_bp.post("/postings/<int:posting_id>/edit")
+def update_posting(posting_id: int):
+    try:
+        work_type_raw = (request.form.get("work_type") or "unknown").strip()
+        try:
+            work_type = WorkType(work_type_raw)
+        except ValueError as e:
+            raise ValueError("Invalid work_type") from e
+
+        skills_en = _parse_skills_en()
+        role_title = (request.form.get("role_title") or "").strip()
+        role_title_en = _optional_str("role_title_en")
+
+        with session_scope() as session:
+            repository = JobPostingRepository(session)
+            updated = repository.update_review_fields(
+                posting_id,
+                company_name=_optional_str("company_name"),
+                role_title=role_title,
+                role_title_en=role_title_en,
+                salary_min=_optional_float("salary_min"),
+                salary_max=_optional_float("salary_max"),
+                work_type=work_type,
+                has_nondiscrimination_disclaimer=request.form.get("has_nondiscrimination_disclaimer") == "on",
+                location=_optional_str("location"),
+                country=_optional_str("country"),
+                city=_optional_str("city"),
+                skills_en=skills_en,
+            )
+
+        add_entries(
+            pairs_from_posting(
+                updated.role_title,
+                updated.role_title_en,
+                updated.skills,
+                updated.skills_en,
+            )
+        )
+        flash("Posting updated and glossary refreshed.", "success")
+        return redirect(url_for("postings.edit_posting", posting_id=posting_id))
+    except ValueError as e:
+        flash(f"Update failed: {e}", "error")
+    except SQLAlchemyError as e:
+        flash(f"Database error: {e}", "error")
+
+    return redirect(url_for("postings.edit_posting", posting_id=posting_id))

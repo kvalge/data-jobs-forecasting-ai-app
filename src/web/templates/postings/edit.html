@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Review posting #{{ posting.id }} — Job Market Analyzer{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h2>Review saved posting <span class="muted">#{{ posting.id }}</span></h2>
+  <p class="hint">
+    Edit extracted fields below, then save. Role title / skill pairs are appended to
+    <code>glossary/original_en.tsv</code> (original → English).
+  </p>
+
+  <form method="post" action="{{ url_for('postings.update_posting', posting_id=posting.id) }}">
+    <div class="form-group">
+      <label for="company_name">Company name</label>
+      <input id="company_name" name="company_name" type="text" value="{{ posting.company_name or '' }}">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="role_title">Role title</label>
+        <input id="role_title" name="role_title" type="text" required value="{{ posting.role_title or '' }}">
+      </div>
+      <div class="form-group">
+        <label for="role_title_en">Role title (EN)</label>
+        <input id="role_title_en" name="role_title_en" type="text" value="{{ posting.role_title_en or '' }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="salary_min">Salary min</label>
+        <input id="salary_min" name="salary_min" type="number" step="any" value="{{ posting.salary_min if posting.salary_min is not none else '' }}">
+      </div>
+      <div class="form-group">
+        <label for="salary_max">Salary max</label>
+        <input id="salary_max" name="salary_max" type="number" step="any" value="{{ posting.salary_max if posting.salary_max is not none else '' }}">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="work_type">Work type</label>
+        <select id="work_type" name="work_type">
+          {% for wt in work_types %}
+            <option value="{{ wt.value }}" {% if posting.work_type.value == wt.value %}selected{% endif %}>{{ wt.value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group form-group-checkbox">
+        <label class="checkbox-label">
+          <input type="checkbox" name="has_nondiscrimination_disclaimer" {% if posting.has_nondiscrimination_disclaimer %}checked{% endif %}>
+          Nondiscrimination disclaimer
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="location">Location</label>
+      <input id="location" name="location" type="text" value="{{ posting.location or '' }}">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="country">Country</label>
+        <input id="country" name="country" type="text" value="{{ posting.country or '' }}">
+      </div>
+      <div class="form-group">
+        <label for="city">City</label>
+        <input id="city" name="city" type="text" value="{{ posting.city or '' }}">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="skills_en">Skills (English) — one per line</label>
+      <textarea id="skills_en" name="skills_en" class="skills-area">{% for skill in posting.skills_en %}{{ skill }}
+{% endfor %}</textarea>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Save changes</button>
+      <a class="btn btn-secondary" href="{{ url_for('postings.new_posting') }}">Add another posting</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

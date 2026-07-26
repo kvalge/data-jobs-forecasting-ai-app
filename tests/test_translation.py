@@ -13,8 +13,9 @@ def test_to_english_returns_english_field():
 
 def test_to_english_falls_back_to_original_on_error():
     translator = OpenRouterTranslator()
-    with patch.object(translator, "_translate_with_fallback", side_effect=RuntimeError("down")):
-        assert translator.to_english("  Analüütik  ") == "Analüütik"
+    with patch("src.llm.translation.lookup_english", return_value=None):
+        with patch.object(translator, "_translate_with_fallback", side_effect=RuntimeError("down")):
+            assert translator.to_english("  RareLabelXYZ  ") == "RareLabelXYZ"
 
 
 def test_to_english_empty_passthrough():

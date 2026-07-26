@@ -104,6 +104,8 @@ Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`).
 
 - Paste posting text and/or upload a `.txt` file, then **Extract and save**.
 - If a file is uploaded, it is used instead of the pasted text.
+- After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and English skills.
+- Saving edits updates the database and appends original→English pairs to `glossary/original_en.tsv` (also used before LLM translation).
 - Success, duplicate, and error messages appear as flash banners.
 - The CLI remains fully functional alongside the web UI.
 

@@ -114,10 +114,22 @@ body {
 }
 
 .form-group textarea,
-.form-group input[type="file"] {
+.form-group input[type="file"],
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select {
   width: 100%;
   font: inherit;
   color: var(--color-dark-gray);
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-dark-gray);
+  border-radius: var(--radius);
+  background: var(--color-white);
 }
 
 .form-group textarea {
@@ -129,9 +141,48 @@ body {
   resize: vertical;
 }
 
-.form-group textarea:focus {
+.form-group textarea.skills-area {
+  min-height: 8rem;
+}
+
+.form-group textarea:focus,
+.form-group input[type="text"]:focus,
+.form-group input[type="number"]:focus,
+.form-group select:focus {
   outline: 2px solid var(--color-navy);
   outline-offset: 1px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space);
+}
+
+@media (max-width: 640px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-group-checkbox {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 0.35rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--color-dark-gray);
+  opacity: 0.7;
+  font-weight: 500;
 }
 
 .form-actions {
@@ -164,6 +215,16 @@ body {
 .btn-danger {
   background: var(--color-dark-red);
   color: var(--color-white);
+}
+
+.btn-secondary {
+  background: var(--color-light-gray);
+  color: var(--color-dark-gray);
+  border: 1px solid var(--color-dark-gray);
+}
+
+.btn-secondary:hover {
+  background: #d9d9d9;
 }
 
 .divider {

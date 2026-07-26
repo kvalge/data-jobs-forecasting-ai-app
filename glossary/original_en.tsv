@@ -1,0 +1,8 @@
+# original_en.tsv — glossary of original labels -> English
+# Format: original<TAB>english  (one pair per line; # starts a comment)
+# Used for role titles and skill names; updated when postings are saved/edited in the UI.
+analüütik	Analyst
+andmeanalüütik	Data Analyst
+andmeinsener	Data Engineer
+tarkvaraarendaja	Software Developer
+projektijuht	Project Manager
