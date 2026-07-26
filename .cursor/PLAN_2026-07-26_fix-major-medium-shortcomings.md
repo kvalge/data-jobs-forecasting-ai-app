@@ -1,7 +1,7 @@
 # Plan: Fix major + medium shortcomings (excl. analysis/forecasting)
 
 **Created:** 2026-07-26  
-**Status:** Planned (not started)  
+**Status:** In progress (Step 1 done)  
 **Scope:** Address major and medium issues identified in project review.  
 **Out of scope:** Analysis / forecasting feature (menu option 2 remains a stub).
 
@@ -12,7 +12,7 @@
 | Step | Title | Status |
 |------|--------|--------|
 | 0 | Create this plan file | Done (2026-07-26) |
-| 1 | Fail-fast config validation | Pending |
+| 1 | Fail-fast config validation | Done (2026-07-26) |
 | 2 | Session-per-operation + rollback | Pending |
 | 3 | Catch LLM/DB errors in CLI | Pending |
 | 4 | Map `created_at` on entity read | Pending |
@@ -116,3 +116,4 @@ After each completed step: update this table + notes below, propose a git commit
 ## Notes log
 
 - **2026-07-26:** Plan created. Implementation not started. Awaiting permission to begin Step 1.
+- **2026-07-26 (Step 1):** Added `validate_config()` in `src/config.py`; `main()` calls it before DB init and prints a clear error on failure. DB engine is created lazily in `session.py` (reads `config.DATABASE_URL` at first use). OpenRouter client reads config via `import src.config as config` so values after validation are used. Updated `.env.example` and `README.md`.

@@ -34,13 +34,14 @@ Job postings are entered manually (copy-paste), covering a broad range of search
    \`\`\`bash
    pip install -r requirements.txt
    \`\`\`
-3. Copy `.env.example` to `.env` and fill in your own values:
+3. Copy `.env.example` to `.env` and fill in your own values (all are required):
    \`\`\`
    OPENROUTER_API_KEY=
    DATABASE_URL=
    MODEL=
    FALLBACK_MODEL=
    \`\`\`
+   The app validates these at startup and exits with a clear error if any are missing or empty.
 
 ## Security notes
 

@@ -1,20 +1,36 @@
 # session.py
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import Engine, create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
-from src.config import DATABASE_URL
+import src.config as config
 from src.dal.models import Base
 
-engine = create_engine(DATABASE_URL, echo=False)
+_engine: Engine | None = None
+_SessionLocal: sessionmaker[Session] | None = None
 
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+def get_engine() -> Engine:
+    """Create the engine on first use (after validate_config has set DATABASE_URL)."""
+    global _engine, _SessionLocal
+
+    if _engine is None:
+        if not config.DATABASE_URL:
+            raise EnvironmentError(
+                "DATABASE_URL is not configured. Call validate_config() at startup."
+            )
+        _engine = create_engine(config.DATABASE_URL, echo=False)
+        _SessionLocal = sessionmaker(bind=_engine, autoflush=False, autocommit=False)
+
+    return _engine
 
 
 def init_db() -> None:
     """Create all tables defined in models.py if they don't already exist."""
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=get_engine())
 
 
 def get_session() -> Session:
     """Return a new database session."""
-    return SessionLocal()
+    get_engine()
+    assert _SessionLocal is not None
+    return _SessionLocal()

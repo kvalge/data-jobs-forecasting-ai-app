@@ -1,5 +1,6 @@
 # main.py
 from src.bll.extraction_service import ExtractionService
+from src.config import validate_config
 from src.dal.job_posting_repository import JobPostingRepository
 from src.dal.session import get_session, init_db
 
@@ -31,6 +32,12 @@ def analysis_flow() -> None:
 
 
 def main() -> None:
+    try:
+        validate_config()
+    except EnvironmentError as e:
+        print(f"Configuration error: {e}")
+        return
+
     init_db()
     session = get_session()
     repository = JobPostingRepository(session)

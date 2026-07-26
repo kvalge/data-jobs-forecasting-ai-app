@@ -3,7 +3,7 @@ import json
 
 import requests
 
-from src.config import OPENROUTER_API_KEY, MODEL, FALLBACK_MODEL
+import src.config as config
 from src.llm.base_llm_client import BaseLLMClient
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -41,7 +41,7 @@ class OpenRouterClient(BaseLLMClient):
 
     def _call_model(self, model_name: str, posting_text: str) -> dict:
         headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
         }
         payload = {
@@ -62,12 +62,12 @@ class OpenRouterClient(BaseLLMClient):
 
     def extract(self, posting_text: str) -> dict:
         try:
-            return self._call_model(MODEL, posting_text)
+            return self._call_model(config.MODEL, posting_text)
         except (requests.RequestException, KeyError, json.JSONDecodeError) as primary_error:
             try:
-                return self._call_model(FALLBACK_MODEL, posting_text)
+                return self._call_model(config.FALLBACK_MODEL, posting_text)
             except (requests.RequestException, KeyError, json.JSONDecodeError) as fallback_error:
                 raise RuntimeError(
-                    f"Both primary ({MODEL}) and fallback ({FALLBACK_MODEL}) models failed. "
+                    f"Both primary ({config.MODEL}) and fallback ({config.FALLBACK_MODEL}) models failed. "
                     f"Primary error: {primary_error}. Fallback error: {fallback_error}"
                 ) from fallback_error
