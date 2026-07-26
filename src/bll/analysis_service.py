@@ -87,14 +87,20 @@ def salary_summary(session: Session) -> dict[str, Any]:
             return None
         return float(value)
 
+    def _round_salary(value: Any) -> float | None:
+        number = _float_or_none(value)
+        if number is None:
+            return None
+        return float(round(number))
+
     return {
-        "min_salary_min": _float_or_none(min_row[0]),
+        "min_salary_min": _round_salary(min_row[0]),
         "min_salary_min_count": int(min_row[1] or 0),
-        "avg_salary_min": _float_or_none(avg_min_row[0]),
+        "avg_salary_min": _round_salary(avg_min_row[0]),
         "avg_salary_min_count": int(avg_min_row[1] or 0),
-        "avg_salary_max": _float_or_none(avg_max_row[0]),
+        "avg_salary_max": _round_salary(avg_max_row[0]),
         "avg_salary_max_count": int(avg_max_row[1] or 0),
-        "max_salary_max": _float_or_none(max_row[0]),
+        "max_salary_max": _round_salary(max_row[0]),
         "max_salary_max_count": int(max_row[1] or 0),
     }
 

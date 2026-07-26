@@ -89,22 +89,22 @@
       <tbody>
         <tr>
           <td>Min of <code>salary_min</code></td>
-          <td>{{ results.salary.min_salary_min if results.salary.min_salary_min is not none else "—" }}</td>
+          <td>{{ results.salary.min_salary_min|int if results.salary.min_salary_min is not none else "—" }}</td>
           <td>{{ results.salary.min_salary_min_count }}</td>
         </tr>
         <tr>
           <td>Avg of <code>salary_min</code></td>
-          <td>{{ "%.2f"|format(results.salary.avg_salary_min) if results.salary.avg_salary_min is not none else "—" }}</td>
+          <td>{{ results.salary.avg_salary_min|int if results.salary.avg_salary_min is not none else "—" }}</td>
           <td>{{ results.salary.avg_salary_min_count }}</td>
         </tr>
         <tr>
           <td>Avg of <code>salary_max</code></td>
-          <td>{{ "%.2f"|format(results.salary.avg_salary_max) if results.salary.avg_salary_max is not none else "—" }}</td>
+          <td>{{ results.salary.avg_salary_max|int if results.salary.avg_salary_max is not none else "—" }}</td>
           <td>{{ results.salary.avg_salary_max_count }}</td>
         </tr>
         <tr>
           <td>Max of <code>salary_max</code></td>
-          <td>{{ results.salary.max_salary_max if results.salary.max_salary_max is not none else "—" }}</td>
+          <td>{{ results.salary.max_salary_max|int if results.salary.max_salary_max is not none else "—" }}</td>
           <td>{{ results.salary.max_salary_max_count }}</td>
         </tr>
       </tbody>

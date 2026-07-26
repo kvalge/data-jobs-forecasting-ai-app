@@ -30,11 +30,11 @@
     <div class="form-row">
       <div class="form-group">
         <label for="salary_min">Salary min</label>
-        <input id="salary_min" name="salary_min" type="number" step="any" value="{{ posting.salary_min if posting.salary_min is not none else '' }}">
+        <input id="salary_min" name="salary_min" type="number" step="1" value="{% if posting.salary_min is not none %}{{ posting.salary_min|round|int }}{% endif %}">
       </div>
       <div class="form-group">
         <label for="salary_max">Salary max</label>
-        <input id="salary_max" name="salary_max" type="number" step="any" value="{{ posting.salary_max if posting.salary_max is not none else '' }}">
+        <input id="salary_max" name="salary_max" type="number" step="1" value="{% if posting.salary_max is not none %}{{ posting.salary_max|round|int }}{% endif %}">
       </div>
     </div>
 

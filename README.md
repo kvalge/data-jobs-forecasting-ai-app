@@ -10,7 +10,9 @@ Once enough postings are collected, the app analyzes the data (most common roles
 
 ## Sample analyses
 
-Charts below are generated from the database when you run **Analysis** in the web UI (`/analysis`). PNGs are written to `docs/analysis/` and overwritten on each run.
+[Latest prediction model results](docs/prediction/model_results.md)
+
+Charts below are generated from the database when you run **Analysis** in the web UI (`/analysis`). PNGs are written to `docs/analysis/` and overwritten on each run. Prediction runs also refresh `docs/prediction/model_results.md`.
 
 ### Top companies
 
@@ -45,7 +47,7 @@ Job postings are entered manually (copy-paste or `.txt` upload), covering a broa
 
 ## Project status
 
-🚧 Work in progress — built step by step as a portfolio project.
+The planned functionalities have been implemented. Due to the small amount of real data, currently is used synthetically generated data.
 
 ## Prerequisites
 

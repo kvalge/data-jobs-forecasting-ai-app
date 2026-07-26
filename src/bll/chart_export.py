@@ -115,8 +115,7 @@ def export_salary_summary(summary: dict[str, Any], *, path: Path = SALARY_SUMMAR
             label = "n/a"
             y = 0
         else:
-            value = float(raw)
-            label = f"{value:.0f}" if value == int(value) else f"{value:.2f}"
+            label = f"{round(float(raw)):.0f}"
             y = bar.get_height()
         ax.text(
             bar.get_x() + bar.get_width() / 2,

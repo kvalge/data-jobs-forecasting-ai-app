@@ -10,6 +10,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.bll.prediction_export import export_model_results_markdown
 from src.dal.forecast_repository import ForecastRepository
 from src.dal.session import session_scope
 from src.prediction.baseline import run_baseline_analysis
@@ -316,7 +317,7 @@ def run_prediction(
                             "target_key": role,
                             "horizon_months": i,
                             "period_start": point.period_start,
-                            "predicted_value": point.value,
+                            "predicted_value": float(round(point.value)),
                             "metrics": salary_out.metrics if i == 1 else None,
                         }
                     )
@@ -436,5 +437,17 @@ def run_prediction(
             len(errors),
             _fmt_seconds(elapsed),
         )
+
+    try:
+        export_path = export_model_results_markdown(
+            run_id=run_id,
+            status=status,
+            summary=summary,
+            results=result_rows,
+        )
+        summary["results_export_path"] = str(export_path)
+        logger.info("Wrote model results markdown to %s", export_path)
+    except OSError as e:
+        logger.warning("Could not write model results file: %s", e)
 
     return PredictionRunOutcome(run_id=run_id, status=status, summary=summary, errors=errors)

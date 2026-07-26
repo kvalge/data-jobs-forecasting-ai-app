@@ -41,7 +41,25 @@ def test_save_and_list_run(session):
                 "period_start": "2026-10-01",
                 "predicted_value": 12.5,
                 "metrics": {"mae": 1.0},
-            }
+            },
+            {
+                "model_name": "rf",
+                "target_type": "role",
+                "target_key": "Data Analyst",
+                "horizon_months": 3,
+                "period_start": "2026-10-01",
+                "predicted_value": 20.0,
+                "metrics": None,
+            },
+            {
+                "model_name": "arima",
+                "target_type": "role",
+                "target_key": "ML Engineer",
+                "horizon_months": 3,
+                "period_start": "2026-10-01",
+                "predicted_value": 5.0,
+                "metrics": None,
+            },
         ],
     )
     session.commit()
@@ -50,8 +68,13 @@ def test_save_and_list_run(session):
     assert run is not None
     assert run.training_window_months == 12
     results = repo.list_results(1)
-    assert len(results) == 1
-    assert results[0].target_key == "Data Engineer"
-    assert results[0].period_start == date(2026, 10, 1)
+    assert len(results) == 3
+    # Grouped by model name, then highest value first
+    assert results[0].model_name == "arima"
+    assert results[1].model_name == "rf"
+    assert results[1].target_key == "Data Analyst"
+    assert results[1].predicted_value == 20.0
+    assert results[2].target_key == "Data Engineer"
+    assert results[2].period_start == date(2026, 10, 1)
     assert session.query(ForecastRunORM).count() == 1
-    assert session.query(ForecastResultORM).count() == 1
+    assert session.query(ForecastResultORM).count() == 3

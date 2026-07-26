@@ -76,14 +76,16 @@ class ForecastRepository:
         )
 
     def list_results(self, run_id: int, *, limit: int = 500) -> list[ForecastResultORM]:
+        """List results grouped by model, highest predicted_value first within each model."""
         return (
             self.session.query(ForecastResultORM)
             .filter(ForecastResultORM.run_id == run_id)
             .order_by(
-                ForecastResultORM.model_name,
-                ForecastResultORM.target_type,
-                ForecastResultORM.target_key,
-                ForecastResultORM.horizon_months,
+                ForecastResultORM.model_name.asc(),
+                ForecastResultORM.predicted_value.desc().nullslast(),
+                ForecastResultORM.horizon_months.asc(),
+                ForecastResultORM.target_type.asc(),
+                ForecastResultORM.target_key.asc(),
             )
             .limit(limit)
             .all()
