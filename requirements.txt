@@ -7,3 +7,8 @@ alembic
 pytest
 flask
 matplotlib
+pandas
+numpy
+scikit-learn
+statsmodels
+prophet

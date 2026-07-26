@@ -13,6 +13,7 @@ from sqlalchemy import (
     Enum as SAEnum,
     ForeignKey,
     Table,
+    JSON,
 )
 from sqlalchemy.orm import declarative_base, relationship
 
@@ -69,3 +70,39 @@ class SkillORM(Base):
     display_name_en = Column(String, nullable=True)
 
     job_postings = relationship("JobPostingORM", secondary=job_posting_skills, back_populates="skills")
+
+
+class ForecastRunORM(Base):
+    __tablename__ = "forecast_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.now)
+    data_source = Column(String, nullable=False, default="fake")
+    training_window_months = Column(Integer, nullable=False)
+    horizons = Column(JSON, nullable=False)
+    models_requested = Column(JSON, nullable=False)
+    status = Column(String, nullable=False, default="completed")
+    meta = Column(JSON, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    results = relationship(
+        "ForecastResultORM",
+        back_populates="run",
+        cascade="all, delete-orphan",
+    )
+
+
+class ForecastResultORM(Base):
+    __tablename__ = "forecast_results"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_id = Column(Integer, ForeignKey("forecast_runs.id"), nullable=False, index=True)
+    model_name = Column(String, nullable=False)
+    target_type = Column(String, nullable=False)
+    target_key = Column(String, nullable=False)
+    horizon_months = Column(Integer, nullable=False, default=0)
+    period_start = Column(Date, nullable=True)
+    predicted_value = Column(Float, nullable=True)
+    metrics = Column(JSON, nullable=True)
+
+    run = relationship("ForecastRunORM", back_populates="results")

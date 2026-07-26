@@ -33,10 +33,11 @@ Charts below are generated from the database when you run **Analysis** in the we
 - Python
 - PostgreSQL
 - SQLAlchemy + Alembic (schema migrations)
-- Flask + Jinja2 (web UI for inserting postings and running analyses)
+- Flask + Jinja2 (web UI for inserting postings, descriptive analysis, and prediction)
 - OpenRouter API (free-tier LLM) for structured extraction
 - Pydantic for schema validation
 - matplotlib (analysis chart PNGs for the UI export / README)
+- pandas / numpy / scikit-learn / statsmodels / Prophet (time series prediction)
 
 ## Scope
 
@@ -80,10 +81,12 @@ Job postings are entered manually (copy-paste or `.txt` upload), covering a broa
    MODEL=
    FALLBACK_MODEL=
    SECRET_KEY=
+   PREDICTION_DATA_SOURCE=fake
    ```
 
    - `OPENROUTER_API_KEY`, `DATABASE_URL`, `MODEL`, and `FALLBACK_MODEL` are required (non-empty).
    - `SECRET_KEY` is used by the Flask UI for sessions/flash messages. Set a long random value for real use (a dev default is used only if unset).
+   - `PREDICTION_DATA_SOURCE` is optional (`fake` default, or `database` when the live aggregator is implemented).
 
    Example `DATABASE_URL` shape:
 
@@ -108,12 +111,22 @@ python -m src.main
 ```
 === Job Market Analyzer ===
 1. Add job posting
-2. Run analysis
+2. Run prediction
 0. Exit
 ```
 
 - **Add job posting:** enter a path to a UTF-8 `.txt` file. Re-submitting the same text skips extraction (content hash).
-- **Run analysis:** not implemented yet (stub).
+- **Run prediction:** choose training window (12/24/36 months), horizons (3/6/12), and models (baseline, prophet, sarima, arima, rf, hgb). Results are saved to `forecast_runs` / `forecast_results`.
+
+## Fake data for prediction
+
+Prediction currently trains on synthetic market series under `data/fake/` (gitignored with the rest of `data/`). Generate or refresh with:
+
+```bash
+python scripts/generate_fake_job_market.py
+```
+
+This creates ~10 000 postings over 36 months (8–12 skills each), plus day / week / month aggregates for roles, skills, and totals. Switch to live DB aggregates later by implementing `DatabaseSource` and setting `PREDICTION_DATA_SOURCE=database`.
 
 ## Run — Web UI
 
@@ -128,6 +141,7 @@ Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`).
 - After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and English skills.
 - Saving edits updates the database and appends original→English pairs to `glossary/original_en.tsv` (also used before LLM translation).
 - Open **Analysis** (`/analysis`) to query top companies, top English roles, salary min/avg/max (nulls excluded), and top English skills. Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).
+- Open **Prediction** (`/prediction`) to run baseline trend analysis and classical/ML forecasts for popular roles, skills, and average salary per role. Choose training window, horizons, and one/some/all models; outcomes are stored in PostgreSQL.
 - Success, duplicate, and error messages appear as flash banners.
 - The CLI remains fully functional alongside the web UI.
 
@@ -139,7 +153,7 @@ From the project root (venv activated):
 pytest
 ```
 
-Tests cover config validation, domain rules, content-hash dedup (LLM mocked), skill get-or-create, analysis aggregations (in-memory SQLite), and Flask insert/analysis routes (ingest/DB mocked). They do not call OpenRouter or require PostgreSQL.
+Tests cover config validation, domain rules, content-hash dedup (LLM mocked), skill get-or-create, analysis aggregations (in-memory SQLite), prediction baseline/models/orchestration (fake mini datasets; Flask prediction mocked), and Flask insert/analysis routes (ingest/DB mocked). They do not call OpenRouter or require PostgreSQL.
 
 ## Database migrations (Alembic)
 
@@ -157,7 +171,7 @@ Schema changes live under `alembic/versions/`. Prefer new Alembic revisions over
 - Job postings store `role_title` plus `role_title_en` (English; same value when already English).
 - Job postings store a unique `content_hash` (SHA-256 of stripped raw text). Re-submitting the same text returns the existing row and skips LLM extraction.
 - Baseline migration: `alembic/versions/20260726_0001_baseline_schema.py`.
-- Later revisions: `20260726_0002` (country/city), `20260726_0003` (role_title_en, display_name_en).
+- Later revisions: `20260726_0002` (country/city), `20260726_0003` (role_title_en, display_name_en), `20260726_0004` (`forecast_runs` / `forecast_results`).
 
 ## Security notes
 

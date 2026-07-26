@@ -11,11 +11,13 @@ import src.config as config
 def restore_env():
     """Save and restore required env vars + config module globals after each test."""
     saved_environ = {name: os.environ.get(name) for name in config.REQUIRED_ENV_VARS}
+    saved_environ["PREDICTION_DATA_SOURCE"] = os.environ.get("PREDICTION_DATA_SOURCE")
     saved_globals = {
         "OPENROUTER_API_KEY": config.OPENROUTER_API_KEY,
         "DATABASE_URL": config.DATABASE_URL,
         "MODEL": config.MODEL,
         "FALLBACK_MODEL": config.FALLBACK_MODEL,
+        "PREDICTION_DATA_SOURCE": config.PREDICTION_DATA_SOURCE,
     }
     yield
     for name, value in saved_environ.items():
@@ -27,3 +29,4 @@ def restore_env():
     config.DATABASE_URL = saved_globals["DATABASE_URL"]
     config.MODEL = saved_globals["MODEL"]
     config.FALLBACK_MODEL = saved_globals["FALLBACK_MODEL"]
+    config.PREDICTION_DATA_SOURCE = saved_globals["PREDICTION_DATA_SOURCE"]

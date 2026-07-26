@@ -51,3 +51,12 @@ def test_validate_config_strips_and_sets_globals():
     assert config.DATABASE_URL == "postgresql+psycopg2://u:p@localhost/db"
     assert config.MODEL == "model-a"
     assert config.FALLBACK_MODEL == "model-b"
+    assert config.PREDICTION_DATA_SOURCE == "fake"
+
+
+@pytest.mark.usefixtures("restore_env")
+def test_validate_config_rejects_bad_prediction_source():
+    _set_all_required()
+    os.environ["PREDICTION_DATA_SOURCE"] = "mongo"
+    with pytest.raises(EnvironmentError, match="PREDICTION_DATA_SOURCE"):
+        config.validate_config()

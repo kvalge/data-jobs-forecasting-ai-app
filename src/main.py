@@ -2,9 +2,11 @@
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.bll.posting_ingest import ingest_posting_text
+from src.bll.prediction_service import ALLOWED_HORIZONS, ALLOWED_WINDOWS, run_prediction
 from src.config import validate_config
 from src.dal.session import init_db
 from src.llm.error_messages import format_llm_failure_for_user
+from src.prediction.models.registry import ALL_RUNNABLE
 
 
 def add_posting_flow() -> None:
@@ -39,8 +41,54 @@ def add_posting_flow() -> None:
         print(f"\nDatabase error: {e}")
 
 
-def analysis_flow() -> None:
-    print("\nAnalysis is not implemented yet — coming in a future step.")
+def prediction_flow() -> None:
+    print("\n=== Prediction / forecasting ===")
+    print("Uses PREDICTION_DATA_SOURCE (default: fake files under data/fake/).")
+    window_raw = input(f"Training window months {ALLOWED_WINDOWS} (default 24): ").strip()
+    try:
+        window = int(window_raw) if window_raw else 24
+    except ValueError:
+        window = 24
+
+    horizons_raw = input("Horizons comma-separated from 3,6,12 (default 3,6,12): ").strip()
+    if horizons_raw:
+        horizons = []
+        for part in horizons_raw.split(","):
+            try:
+                h = int(part.strip())
+            except ValueError:
+                continue
+            if h in ALLOWED_HORIZONS:
+                horizons.append(h)
+    else:
+        horizons = list(ALLOWED_HORIZONS)
+
+    print(f"Models: {', '.join(ALL_RUNNABLE)}")
+    models_raw = input("Models comma-separated, or 'all' (default all): ").strip().lower()
+    if not models_raw or models_raw == "all":
+        models = list(ALL_RUNNABLE)
+    else:
+        models = [m.strip() for m in models_raw.split(",") if m.strip()]
+
+    try:
+        outcome = run_prediction(
+            training_window_months=window,
+            horizons=horizons,
+            models=models,
+            persist=True,
+        )
+    except (ValueError, FileNotFoundError, EnvironmentError, SQLAlchemyError) as e:
+        print(f"\nPrediction failed: {e}")
+        return
+
+    print(f"\nRun id: {outcome.run_id}")
+    print(f"Status: {outcome.status}")
+    print(f"Results: {outcome.summary.get('n_results')}")
+    print(f"Elapsed: {outcome.summary.get('elapsed_seconds')} s")
+    if outcome.errors:
+        print(f"Warnings: {len(outcome.errors)}")
+        for key, msg in list(outcome.errors.items())[:8]:
+            print(f"  - {key}: {msg}")
 
 
 def main() -> None:
@@ -55,14 +103,14 @@ def main() -> None:
     while True:
         print("\n=== Job Market Analyzer ===")
         print("1. Add job posting")
-        print("2. Run analysis")
+        print("2. Run prediction")
         print("0. Exit")
         choice = input("Choose an option: ").strip()
 
         if choice == "1":
             add_posting_flow()
         elif choice == "2":
-            analysis_flow()
+            prediction_flow()
         elif choice == "0":
             print("Goodbye!")
             break

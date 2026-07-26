@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Prediction — Job Market Analyzer{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h2>Time series prediction</h2>
+  <p class="hint">
+    Forecast popular roles, skills, and average salary per role for the next 3 / 6 / 12 months.
+    Training data currently comes from <code>data/fake/</code> (switch later via
+    <code>PREDICTION_DATA_SOURCE</code>). Results are stored in the database.
+  </p>
+
+  <form method="post" action="{{ url_for('prediction.prediction_page') }}">
+    <div class="form-group">
+      <label for="training_window">Training window (months)</label>
+      <select id="training_window" name="training_window">
+        {% for w in allowed_windows %}
+        <option value="{{ w }}" {% if w == training_window %}selected{% endif %}>{{ w }} months</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <fieldset class="analysis-options">
+      <legend>Forecast horizons</legend>
+      {% for h in allowed_horizons %}
+      <label class="checkbox-label">
+        <input type="checkbox" name="horizon" value="{{ h }}"
+          {% if h in selected_horizons %}checked{% endif %}>
+        {{ h }} months
+      </label>
+      {% endfor %}
+    </fieldset>
+
+    <fieldset class="analysis-options">
+      <legend>Models (one, some, or all)</legend>
+      {% for m in all_models %}
+      <label class="checkbox-label">
+        <input type="checkbox" name="model_{{ m }}"
+          {% if m in selected_models %}checked{% endif %}>
+        <code>{{ m }}</code>
+      </label>
+      {% endfor %}
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Run prediction</button>
+      <a class="btn btn-secondary" href="{{ url_for('analysis.analysis_page') }}">Descriptive analysis</a>
+    </div>
+  </form>
+</section>
+
+{% if outcome %}
+<section class="panel results-panel">
+  <h2>Run summary</h2>
+  <table class="data-table">
+    <tbody>
+      <tr><th>Run id</th><td>{{ outcome.run_id }}</td></tr>
+      <tr><th>Status</th><td>{{ outcome.status }}</td></tr>
+      <tr><th>Models</th><td>{{ outcome.summary.models|join(', ') }}</td></tr>
+      <tr><th>Horizons</th><td>{{ outcome.summary.horizons|join(', ') }}</td></tr>
+      <tr><th>Window</th><td>{{ outcome.summary.training_window_months }} months</td></tr>
+      <tr><th>Result rows</th><td>{{ outcome.summary.n_results }}</td></tr>
+      <tr><th>Elapsed</th><td>{{ outcome.summary.elapsed_seconds }} s</td></tr>
+      <tr><th>Warnings</th><td>{{ outcome.summary.error_count }}</td></tr>
+    </tbody>
+  </table>
+  {% if outcome.summary.roles %}
+  <p class="hint"><strong>Top roles:</strong> {{ outcome.summary.roles|join(', ') }}</p>
+  {% endif %}
+  {% if outcome.summary.skills %}
+  <p class="hint"><strong>Top skills:</strong> {{ outcome.summary.skills|join(', ') }}</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if preview_results %}
+<section class="panel results-panel">
+  <h2>Result preview</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Model</th>
+        <th>Type</th>
+        <th>Target</th>
+        <th>Horizon</th>
+        <th>Period</th>
+        <th>Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in preview_results %}
+      <tr>
+        <td>{{ r.model_name }}</td>
+        <td>{{ r.target_type }}</td>
+        <td>{{ r.target_key }}</td>
+        <td>{{ r.horizon_months }}</td>
+        <td>{{ r.period_start or "—" }}</td>
+        <td>{% if r.predicted_value is not none %}{{ "%.2f"|format(r.predicted_value) }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% if recent_runs %}
+<section class="panel results-panel">
+  <h2>Recent runs</h2>
+  <table class="data-table">
+    <thead>
+      <tr><th>Id</th><th>Created</th><th>Window</th><th>Status</th><th>Source</th></tr>
+    </thead>
+    <tbody>
+      {% for run in recent_runs %}
+      <tr>
+        <td>{{ run.id }}</td>
+        <td>{{ run.created_at }}</td>
+        <td>{{ run.training_window_months }}</td>
+        <td>{{ run.status }}</td>
+        <td>{{ run.data_source }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}
