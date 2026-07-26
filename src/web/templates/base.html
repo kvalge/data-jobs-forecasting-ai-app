@@ -10,6 +10,10 @@
   <header class="site-header">
     <h1>Job Market Analyzer</h1>
     <p>Extract and save structured data from job postings</p>
+    <nav class="site-nav" aria-label="Main">
+      <a href="{{ url_for('postings.new_posting') }}">Add posting</a>
+      <a href="{{ url_for('analysis.analysis_page') }}">Analysis</a>
+    </nav>
   </header>
 
   <main class="site-main">

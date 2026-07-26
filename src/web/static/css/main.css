@@ -45,6 +45,27 @@ body {
   opacity: 0.85;
 }
 
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-top: 0.85rem;
+}
+
+.site-nav a {
+  color: var(--color-white);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.9;
+  border-bottom: 1px solid transparent;
+}
+
+.site-nav a:hover {
+  opacity: 1;
+  border-bottom-color: var(--color-light-gray);
+}
+
 .site-main {
   max-width: var(--max-width);
   margin: 0 auto;
@@ -231,6 +252,46 @@ body {
   margin: 1.25rem 0;
   border: none;
   border-top: 1px solid var(--color-light-gray);
+}
+
+.analysis-options {
+  border: 1px solid var(--color-light-gray);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem 1rem;
+  margin: 0 0 var(--space);
+}
+
+.analysis-options legend {
+  padding: 0 0.35rem;
+  font-weight: 600;
+  color: var(--color-navy);
+}
+
+.analysis-options .checkbox-label {
+  display: flex;
+  margin: 0.45rem 0;
+}
+
+.results-panel {
+  margin-top: var(--space);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--color-light-gray);
+}
+
+.data-table th {
+  color: var(--color-navy);
+  font-weight: 650;
 }
 
 .site-footer {

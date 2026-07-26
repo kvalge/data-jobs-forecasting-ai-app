@@ -7,6 +7,7 @@ from flask import Flask
 
 from src.config import validate_config
 from src.dal.session import init_db
+from src.web.routes.analysis import analysis_bp
 from src.web.routes.postings import postings_bp
 
 _WEB_DIR = Path(__file__).resolve().parent
@@ -32,4 +33,5 @@ def create_app(*, run_startup: bool = True) -> Flask:
         init_db()
 
     app.register_blueprint(postings_bp)
+    app.register_blueprint(analysis_bp)
     return app

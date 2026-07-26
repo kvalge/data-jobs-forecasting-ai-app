@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis — Job Market Analyzer{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <h2>Data analysis</h2>
+  <p class="hint">
+    Choose one or more queries against saved postings. Results appear below and
+    matching PNG charts are written to <code>docs/analysis/</code> (also shown in the README).
+  </p>
+
+  <form method="post" action="{{ url_for('analysis.analysis_page') }}">
+    <fieldset class="analysis-options">
+      <legend>Analyses</legend>
+      <label class="checkbox-label">
+        <input type="checkbox" name="companies" {% if not selected or 'companies' in selected %}checked{% endif %}>
+        Top N companies (<code>company_name</code>)
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="roles" {% if not selected or 'roles' in selected %}checked{% endif %}>
+        Top N roles (<code>role_title_en</code>)
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="salary" {% if not selected or 'salary' in selected %}checked{% endif %}>
+        Salary min / avg / max (nulls excluded per metric)
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" name="skills" {% if not selected or 'skills' in selected %}checked{% endif %}>
+        Top N skills (<code>display_name_en</code>)
+      </label>
+    </fieldset>
+
+    <div class="form-group">
+      <label for="n">Top N</label>
+      <input id="n" name="n" type="number" min="{{ min_n }}" max="{{ max_n }}" value="{{ n or default_n }}">
+      <p class="hint">Used for company, role, and skill rankings ({{ min_n }}–{{ max_n }}).</p>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Run analysis</button>
+      <a class="btn btn-secondary" href="{{ url_for('postings.new_posting') }}">Add posting</a>
+    </div>
+  </form>
+</section>
+
+{% if results %}
+  {% if results.companies is defined %}
+  <section class="panel results-panel">
+    <h2>Top companies</h2>
+    {% if results.companies %}
+    <table class="data-table">
+      <thead><tr><th>Company</th><th>Postings</th></tr></thead>
+      <tbody>
+        {% for row in results.companies %}
+        <tr><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="hint">No company data.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if results.roles is defined %}
+  <section class="panel results-panel">
+    <h2>Top roles (English)</h2>
+    {% if results.roles %}
+    <table class="data-table">
+      <thead><tr><th>Role</th><th>Postings</th></tr></thead>
+      <tbody>
+        {% for row in results.roles %}
+        <tr><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="hint">No role data.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if results.salary is defined %}
+  <section class="panel results-panel">
+    <h2>Salary summary</h2>
+    <table class="data-table">
+      <thead><tr><th>Metric</th><th>Value</th><th>Non-null rows</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Min of <code>salary_min</code></td>
+          <td>{{ results.salary.min_salary_min if results.salary.min_salary_min is not none else "—" }}</td>
+          <td>{{ results.salary.min_salary_min_count }}</td>
+        </tr>
+        <tr>
+          <td>Avg of <code>salary_min</code></td>
+          <td>{{ "%.2f"|format(results.salary.avg_salary_min) if results.salary.avg_salary_min is not none else "—" }}</td>
+          <td>{{ results.salary.avg_salary_min_count }}</td>
+        </tr>
+        <tr>
+          <td>Avg of <code>salary_max</code></td>
+          <td>{{ "%.2f"|format(results.salary.avg_salary_max) if results.salary.avg_salary_max is not none else "—" }}</td>
+          <td>{{ results.salary.avg_salary_max_count }}</td>
+        </tr>
+        <tr>
+          <td>Max of <code>salary_max</code></td>
+          <td>{{ results.salary.max_salary_max if results.salary.max_salary_max is not none else "—" }}</td>
+          <td>{{ results.salary.max_salary_max_count }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if results.skills is defined %}
+  <section class="panel results-panel">
+    <h2>Top skills (English)</h2>
+    {% if results.skills %}
+    <table class="data-table">
+      <thead><tr><th>Skill</th><th>Postings</th></tr></thead>
+      <tbody>
+        {% for row in results.skills %}
+        <tr><td>{{ row.label }}</td><td>{{ row.count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="hint">No skill data.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+{% endif %}
+{% endblock %}
