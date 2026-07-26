@@ -24,3 +24,4 @@ class JobPostingEntity(BaseEntity):
     skills: list[str] = field(default_factory=list)
     date_added: date | None = None
     raw_text: str | None = None
+    content_hash: str | None = None

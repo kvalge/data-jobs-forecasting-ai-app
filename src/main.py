@@ -25,8 +25,15 @@ def add_posting_flow() -> None:
         repository = JobPostingRepository(session)
         service = ExtractionService(repository)
         try:
-            saved = service.extract_and_save(posting_text)
-            print(f"\nSaved posting: '{saved.role_title}' at '{saved.company_name}' (id={saved.id})")
+            result = service.extract_and_save(posting_text)
+            saved = result.entity
+            if result.created:
+                print(f"\nSaved posting: '{saved.role_title}' at '{saved.company_name}' (id={saved.id})")
+            else:
+                print(
+                    f"\nPosting already saved: '{saved.role_title}' at '{saved.company_name}' "
+                    f"(id={saved.id}) — skipped LLM extraction."
+                )
         except ValueError as e:
             print(f"\nExtraction failed: {e}")
         except RuntimeError as e:

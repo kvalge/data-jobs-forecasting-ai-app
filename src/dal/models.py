@@ -46,6 +46,8 @@ class JobPostingORM(Base):
     has_nondiscrimination_disclaimer = Column(Boolean, nullable=False, default=False)
     date_added = Column(Date, nullable=False, default=date.today)
     raw_text = Column(Text, nullable=True)
+    # SHA-256 of stripped raw_text; unique so the same posting is not stored twice
+    content_hash = Column(String(64), nullable=True, unique=True)
     created_at = Column(DateTime, nullable=False, default=datetime.now)
 
     skills = relationship("SkillORM", secondary=job_posting_skills, back_populates="job_postings")

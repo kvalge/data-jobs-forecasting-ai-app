@@ -46,11 +46,14 @@ Job postings are entered manually (copy-paste), covering a broad range of search
 ## Database schema notes
 
 - Skills store a normalized unique `name` (lowercase) plus a `display_name` (first-seen casing) for reports/UI.
-- `create_all` only creates missing tables; it does **not** add new columns to existing tables. If you already have a `skills` table without `display_name`, run:
+- Job postings store a unique `content_hash` (SHA-256 of stripped raw text). Re-submitting the same text returns the existing row and skips LLM extraction.
+- `create_all` only creates missing tables; it does **not** add new columns to existing tables. If you already have tables from an earlier schema, run the needed ALTERs (or drop/recreate a throwaway local DB):
   ```sql
   ALTER TABLE skills ADD COLUMN display_name VARCHAR;
+  ALTER TABLE job_postings ADD COLUMN content_hash VARCHAR(64);
+  CREATE UNIQUE INDEX IF NOT EXISTS ix_job_postings_content_hash ON job_postings (content_hash);
   ```
-  Or drop/recreate the tables in a throwaway local database. Migrations (Alembic) are planned separately.
+  Migrations (Alembic) are planned separately.
 
 ## Security notes
 

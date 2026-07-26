@@ -1,7 +1,7 @@
 # Plan: Fix major + medium shortcomings (excl. analysis/forecasting)
 
 **Created:** 2026-07-26  
-**Status:** In progress (Step 7 done)  
+**Status:** In progress (Step 8 done)  
 **Scope:** Address major and medium issues identified in project review.  
 **Out of scope:** Analysis / forecasting feature (menu option 2 remains a stub).
 
@@ -19,7 +19,7 @@
 | 5 | Safer skill `get_or_create` | Done (2026-07-26) |
 | 6 | Preserve skill display casing | Done (2026-07-26) |
 | 7 | Domain validation after LLM | Done (2026-07-26) |
-| 8 | Deduplicate job postings | Pending |
+| 8 | Deduplicate job postings | Done (2026-07-26) |
 | 9 | Harden LLM client errors | Pending |
 | 10 | Document how to run the app | Pending |
 | 11 | Add Alembic migrations | Pending |
@@ -123,3 +123,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-26 (Step 5):** `SkillRepository.get_or_create` uses a savepoint (`begin_nested`) and on `IntegrityError` re-queries by normalized name so concurrent inserts do not break the outer transaction.
 - **2026-07-26 (Step 6):** Choice: keep `skills.name` as lowercase unique key; add nullable `display_name` for first-seen casing. Reads use `display_name or name`. Existing DBs need `ALTER TABLE` (documented in README) until Alembic (Step 11).
 - **2026-07-26 (Step 7):** Added `src/bll/job_posting_validator.py`: non-empty `role_title`, `salary_min <= salary_max` when both set, drop blank skills. Wired into `ExtractionService` after Pydantic validation.
+- **2026-07-26 (Step 8):** Dedup via SHA-256 `content_hash` of stripped `raw_text` (unique column). Lookup before LLM; `save` also short-circuits / handles IntegrityError. CLI reports already-saved vs newly created. ALTER documented in README.

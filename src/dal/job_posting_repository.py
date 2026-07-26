@@ -1,11 +1,11 @@
 # job_posting_repository.py
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.dal.base_repository import BaseRepository
 from src.dal.models import JobPostingORM
 from src.dal.skill_repository import SkillRepository
 from src.domain.job_posting_entity import JobPostingEntity
-from src.domain.skill_entity import SkillEntity
 from src.domain.work_type import WorkType
 
 
@@ -16,7 +16,22 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         self.session = session
         self.skill_repository = SkillRepository(session)
 
+    def get_by_content_hash(self, content_hash: str) -> JobPostingEntity | None:
+        orm_obj = (
+            self.session.query(JobPostingORM)
+            .filter(JobPostingORM.content_hash == content_hash)
+            .first()
+        )
+        if orm_obj is None:
+            return None
+        return self._to_entity(orm_obj)
+
     def save(self, entity: JobPostingEntity) -> JobPostingEntity:
+        if entity.content_hash:
+            existing = self.get_by_content_hash(entity.content_hash)
+            if existing is not None:
+                return existing
+
         orm_obj = JobPostingORM(
             company_name=entity.company_name,
             role_title=entity.role_title,
@@ -31,6 +46,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             has_nondiscrimination_disclaimer=entity.has_nondiscrimination_disclaimer,
             date_added=entity.date_added,
             raw_text=entity.raw_text,
+            content_hash=entity.content_hash,
         )
 
         # link skills — get_or_create returns SkillORM instances directly
@@ -42,6 +58,13 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         try:
             self.session.commit()  # posting + linked skills in one transaction
             self.session.refresh(orm_obj)
+        except IntegrityError:
+            self.session.rollback()
+            if entity.content_hash:
+                existing = self.get_by_content_hash(entity.content_hash)
+                if existing is not None:
+                    return existing
+            raise
         except Exception:
             self.session.rollback()
             raise
@@ -49,7 +72,6 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         entity.id = orm_obj.id
         entity.created_at = orm_obj.created_at
         return entity
-
 
     def get_by_id(self, entity_id: int) -> JobPostingEntity | None:
         orm_obj = self.session.get(JobPostingORM, entity_id)
@@ -86,4 +108,5 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             skills=[(s.display_name or s.name) for s in orm_obj.skills],
             date_added=orm_obj.date_added,
             raw_text=orm_obj.raw_text,
+            content_hash=orm_obj.content_hash,
         )
