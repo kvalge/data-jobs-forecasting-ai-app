@@ -1,7 +1,7 @@
 # Plan: Fix major + medium shortcomings (excl. analysis/forecasting)
 
 **Created:** 2026-07-26  
-**Status:** In progress (Step 2 done)  
+**Status:** In progress (Step 3 done)  
 **Scope:** Address major and medium issues identified in project review.  
 **Out of scope:** Analysis / forecasting feature (menu option 2 remains a stub).
 
@@ -14,7 +14,7 @@
 | 0 | Create this plan file | Done (2026-07-26) |
 | 1 | Fail-fast config validation | Done (2026-07-26) |
 | 2 | Session-per-operation + rollback | Done (2026-07-26) |
-| 3 | Catch LLM/DB errors in CLI | Pending |
+| 3 | Catch LLM/DB errors in CLI | Done (2026-07-26) |
 | 4 | Map `created_at` on entity read | Pending |
 | 5 | Safer skill `get_or_create` | Pending |
 | 6 | Preserve skill display casing | Pending |
@@ -118,3 +118,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-26:** Plan created. Implementation not started. Awaiting permission to begin Step 1.
 - **2026-07-26 (Step 1):** Added `validate_config()` in `src/config.py`; `main()` calls it before DB init and prints a clear error on failure. DB engine is created lazily in `session.py` (reads `config.DATABASE_URL` at first use). OpenRouter client reads config via `import src.config as config` so values after validation are used. Updated `.env.example` and `README.md`.
 - **2026-07-26 (Step 2):** Added `session_scope()` context manager (rollback on error, always close). `add_posting_flow` opens a fresh session per save instead of one session for the whole CLI. `JobPostingRepository.save` rolls back if `commit` fails.
+- **2026-07-26 (Step 3):** `add_posting_flow` now catches `ValueError` (schema), `RuntimeError` (LLM), and `SQLAlchemyError` (DB) and prints clear messages instead of unhandled tracebacks.

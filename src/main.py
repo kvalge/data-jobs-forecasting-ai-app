@@ -1,4 +1,6 @@
 # main.py
+from sqlalchemy.exc import SQLAlchemyError
+
 from src.bll.extraction_service import ExtractionService
 from src.config import validate_config
 from src.dal.job_posting_repository import JobPostingRepository
@@ -27,6 +29,10 @@ def add_posting_flow() -> None:
             print(f"\nSaved posting: '{saved.role_title}' at '{saved.company_name}' (id={saved.id})")
         except ValueError as e:
             print(f"\nExtraction failed: {e}")
+        except RuntimeError as e:
+            print(f"\nLLM request failed: {e}")
+        except SQLAlchemyError as e:
+            print(f"\nDatabase error: {e}")
 
 
 def analysis_flow() -> None:
