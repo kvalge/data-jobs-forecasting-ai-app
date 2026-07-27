@@ -134,6 +134,7 @@ class OpenRouterClient(BaseLLMClient):
         return "\n".join(lines).strip()
 
     def extract(self, posting_text: str) -> dict:
+        """Try OpenRouter model chain; on total failure, fall back to local Ollama."""
         models = config.llm_model_chain()
         if not models:
             raise ValueError("No LLM models configured")
@@ -148,7 +149,22 @@ class OpenRouterClient(BaseLLMClient):
                 errors.append(f"{model_name}: {err}")
                 continue
 
-        detail = "; ".join(errors)
+        openrouter_detail = "; ".join(errors)
+
+        if config.OLLAMA_FALLBACK_ENABLED:
+            try:
+                from src.llm.ollama_client import OllamaClient
+
+                return OllamaClient().extract(posting_text)
+            except _RECOVERABLE_ERRORS as ollama_error:
+                last_error = ollama_error
+                raise RuntimeError(
+                    f"All OpenRouter models failed ({len(models)} tried), "
+                    f"and Ollama fallback also failed. "
+                    f"OpenRouter: {openrouter_detail}. "
+                    f"Ollama ({config.OLLAMA_MODEL}): {ollama_error}"
+                ) from ollama_error
+
         raise RuntimeError(
-            f"All configured AI models failed ({len(models)} tried). {detail}"
+            f"All configured AI models failed ({len(models)} tried). {openrouter_detail}"
         ) from last_error

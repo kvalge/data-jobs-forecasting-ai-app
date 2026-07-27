@@ -1,6 +1,6 @@
 """Tests that OpenRouter extract tries the next model only after failure."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -48,3 +48,41 @@ def test_extract_uses_fallback_only_after_failure(client, monkeypatch):
     result = client.extract("posting")
     assert result["role_title"] == "Analyst"
     assert calls == ["model-a", "model-b"]
+
+
+def test_extract_falls_back_to_ollama_after_openrouter_exhausted(client, monkeypatch):
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.llm_model_chain",
+        lambda: ["model-a", "model-b"],
+    )
+    monkeypatch.setattr("src.llm.openrouter_client.config.OLLAMA_FALLBACK_ENABLED", True)
+    monkeypatch.setattr("src.llm.openrouter_client.config.OLLAMA_MODEL", "qwen3.5:latest")
+
+    def fake_call(model_name, posting_text):
+        raise RuntimeError(f"AI rate limit for model '{model_name}' (HTTP 429)")
+
+    monkeypatch.setattr(client, "_call_model", fake_call)
+
+    ollama = MagicMock()
+    ollama.extract.return_value = {"role_title": "Local Dev", "skills": []}
+    monkeypatch.setattr("src.llm.ollama_client.OllamaClient", lambda: ollama)
+
+    result = client.extract("posting")
+    assert result["role_title"] == "Local Dev"
+    ollama.extract.assert_called_once_with("posting")
+
+
+def test_extract_skips_ollama_when_disabled(client, monkeypatch):
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.llm_model_chain",
+        lambda: ["model-a"],
+    )
+    monkeypatch.setattr("src.llm.openrouter_client.config.OLLAMA_FALLBACK_ENABLED", False)
+
+    def fake_call(model_name, posting_text):
+        raise RuntimeError("AI rate limit (HTTP 429)")
+
+    monkeypatch.setattr(client, "_call_model", fake_call)
+
+    with pytest.raises(RuntimeError, match="All configured AI models failed"):
+        client.extract("posting")

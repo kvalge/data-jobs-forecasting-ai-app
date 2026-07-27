@@ -65,11 +65,22 @@ def describe_http_status(status: int | str, model_name: str, response: requests.
 def describe_request_exception(exc: BaseException, model_name: str) -> str:
     """Human-readable explanation for connection/timeouts and other request errors."""
     if isinstance(exc, requests.Timeout):
+        if "ollama" in model_name.lower():
+            return (
+                f"Local Ollama timed out for model '{model_name}'. "
+                "Raise OLLAMA_TIMEOUT_SECONDS, keep Ollama warm (ollama run …), "
+                "or use a smaller/faster model."
+            )
         return (
             f"AI request timed out for model '{model_name}'. "
             "Check your internet connection and try again."
         )
     if isinstance(exc, requests.ConnectionError):
+        if "ollama" in model_name.lower():
+            return (
+                f"Could not connect to local Ollama for model '{model_name}'. "
+                "Start Ollama (ollama serve) and confirm OLLAMA_BASE_URL."
+            )
         return (
             f"Could not connect to the AI service for model '{model_name}'. "
             "Check your internet connection and try again."
@@ -87,11 +98,40 @@ def format_llm_failure_for_user(error: BaseException) -> str:
         return "The AI service failed. Please try again."
 
     # Prefer the most actionable signal in combined primary+fallback errors
-    if "HTTP 429" in text or "rate limit" in text.lower() or "free-tier" in text.lower():
+    if "ollama" in text.lower() and (
+        "timed out" in text.lower() or "timeout" in text.lower()
+    ):
         return (
-            "AI rate limit or free-tier quota reached (all configured models). "
-            "Wait a few minutes and try again, or change MODEL / FALLBACK_MODEL / "
-            "FALLBACK_MODEL2 / FALLBACK_MODEL3 in .env."
+            "OpenRouter failed and local Ollama timed out. "
+            "Raise OLLAMA_TIMEOUT_SECONDS (e.g. 300–600), keep the model loaded, "
+            "or switch OLLAMA_MODEL to a faster model."
+        )
+    if "ollama" in text.lower() and (
+        "Could not connect" in text or "ollama serve" in text.lower()
+    ):
+        return (
+            "OpenRouter failed and local Ollama was unreachable. "
+            "Start Ollama (ollama serve), confirm OLLAMA_BASE_URL, "
+            "and that OLLAMA_MODEL is pulled (e.g. ollama pull qwen3.5:latest)."
+        )
+    if "HTTP 429" in text or "rate limit" in text.lower() or "free-tier" in text.lower():
+        if "ollama" in text.lower():
+            # Keep a short Ollama-specific tail from the combined error when present.
+            ollama_tail = ""
+            lower = text.lower()
+            idx = lower.rfind("ollama")
+            if idx >= 0:
+                ollama_tail = " Details: " + text[idx:].strip()[:240]
+            return (
+                "OpenRouter free-tier/rate limit was reached and the local Ollama fallback "
+                "also failed. Check Ollama is running with OLLAMA_MODEL pulled "
+                f"(e.g. qwen3.5:latest).{ollama_tail}"
+            )
+        return (
+            "AI rate limit or free-tier quota reached on OpenRouter. "
+            "The app will try local Ollama next when enabled; if you still see this, "
+            "check Ollama is running or wait and retry. "
+            "Models: MODEL / FALLBACK_MODEL / FALLBACK_MODEL2 / FALLBACK_MODEL3."
         )
     if "HTTP 401" in text or "HTTP 403" in text or "API key" in text:
         return (
@@ -99,8 +139,17 @@ def format_llm_failure_for_user(error: BaseException) -> str:
             "Check OPENROUTER_API_KEY in your .env file."
         )
     if "timed out" in text.lower():
+        if "ollama" in text.lower():
+            return (
+                "Local Ollama timed out. Raise OLLAMA_TIMEOUT_SECONDS or use a faster model."
+            )
         return "AI request timed out. Check your internet connection and try again."
     if "Could not connect" in text or "ConnectionError" in text:
+        if "ollama" in text.lower():
+            return (
+                "Could not connect to local Ollama. Start it with ollama serve "
+                "and check OLLAMA_BASE_URL."
+            )
         return "Could not connect to the AI service. Check your internet connection and try again."
     if "not found" in text.lower() and "HTTP 404" in text:
         return (

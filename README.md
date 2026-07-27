@@ -4,7 +4,7 @@ An LLM-powered application that extracts structured data from data/AI job postin
 
 ## What it does
 
-Paste a job posting's text into the app (CLI or web UI). An LLM (via OpenRouter) extracts structured fields — company, role title (plus English), responsibilities, requirements, application deadline, salary, location, work type (onsite/hybrid/remote), nondiscrimination disclaimer (y/n), and required skills (plus English) — in **one API call** (extra models are tried only if that call fails), then saves them to a PostgreSQL database.
+Paste a job posting's text into the app (CLI or web UI). An LLM (via OpenRouter, with local Ollama as last resort) extracts structured fields — company, role title (plus English), responsibilities, requirements, application deadline, salary, location, work type (onsite/hybrid/remote), nondiscrimination disclaimer (y/n), and required skills (plus English) — in **one successful API call** (extra OpenRouter models, then Ollama, only if earlier calls fail), then saves them to a PostgreSQL database.
 
 Once enough postings are collected, the app analyzes the data (most common roles, companies, skills, locations, salary ranges etc) to surface trends in the data/AI job market — and can point to forecasted momentum for specific skills or roles over the next 3, 6, or 12 months.
 
@@ -36,7 +36,7 @@ Charts below are generated from the database when you run **Analysis** in the we
 - PostgreSQL
 - SQLAlchemy + Alembic (schema migrations)
 - Flask + Jinja2 (web UI for inserting postings, descriptive analysis, and prediction)
-- OpenRouter API (free-tier LLM) for structured extraction
+- OpenRouter API (free-tier LLM) for structured extraction, with local Ollama (`qwen3.5:latest`) when OpenRouter is exhausted
 - Pydantic for schema validation
 - matplotlib (analysis chart PNGs for the UI export / README)
 - pandas / numpy / scikit-learn / statsmodels / Prophet (time series prediction)
@@ -86,13 +86,16 @@ The planned functionalities have been implemented. Due to the small amount of re
    FALLBACK_MODEL3=
    SECRET_KEY=
    PREDICTION_DATA_SOURCE=fake
+   OLLAMA_FALLBACK_ENABLED=true
+   OLLAMA_BASE_URL=http://127.0.0.1:11434
+   OLLAMA_MODEL=qwen3.5:latest
    ```
 
    - `OPENROUTER_API_KEY`, `DATABASE_URL`, `MODEL`, and `FALLBACK_MODEL` are required (non-empty).
-   - `FALLBACK_MODEL2` and `FALLBACK_MODEL3` are optional; when set, they are tried if the first two models fail or hit rate limits.
+   - `FALLBACK_MODEL2` and `FALLBACK_MODEL3` are optional; when set, they are tried if earlier OpenRouter models fail or hit rate limits.
+   - After **all** OpenRouter models fail (e.g. free-tier limits), the app tries local **Ollama** (`OLLAMA_MODEL`, default `qwen3.5:latest`). Set `OLLAMA_FALLBACK_ENABLED=false` to disable. Requires Ollama running (`ollama serve`).
    - `SECRET_KEY` is used by the Flask UI for sessions/flash messages. Set a long random value for real use (a dev default is used only if unset).
    - `PREDICTION_DATA_SOURCE` is optional (`fake` default, or `database` when the live aggregator is implemented).
-
    Example `DATABASE_URL` shape:
 
    ```

@@ -19,6 +19,14 @@ FALLBACK_MODEL: str | None = os.getenv("FALLBACK_MODEL")
 # Optional extra fallbacks when primary + FALLBACK_MODEL hit limits / fail.
 FALLBACK_MODEL2: str | None = os.getenv("FALLBACK_MODEL2")
 FALLBACK_MODEL3: str | None = os.getenv("FALLBACK_MODEL3")
+# Local Ollama fallback after all OpenRouter models fail (e.g. free-tier limits).
+OLLAMA_FALLBACK_ENABLED: bool = (
+    (os.getenv("OLLAMA_FALLBACK_ENABLED") or "true").strip().lower()
+    in ("1", "true", "yes", "on")
+)
+OLLAMA_BASE_URL: str = (os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").strip()
+OLLAMA_MODEL: str = (os.getenv("OLLAMA_MODEL") or "qwen3.5:latest").strip()
+OLLAMA_TIMEOUT_SECONDS: int = int((os.getenv("OLLAMA_TIMEOUT_SECONDS") or "180").strip() or "180")
 # Prediction series source: "fake" (data/fake CSVs) or "database" (future).
 PREDICTION_DATA_SOURCE: str = (os.getenv("PREDICTION_DATA_SOURCE") or "fake").strip() or "fake"
 
@@ -48,6 +56,7 @@ def validate_config() -> None:
     """
     global OPENROUTER_API_KEY, DATABASE_URL, MODEL, FALLBACK_MODEL
     global FALLBACK_MODEL2, FALLBACK_MODEL3, PREDICTION_DATA_SOURCE
+    global OLLAMA_FALLBACK_ENABLED, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT_SECONDS
 
     missing = [
         name
@@ -67,6 +76,20 @@ def validate_config() -> None:
     FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "").strip()
     FALLBACK_MODEL2 = (os.getenv("FALLBACK_MODEL2") or "").strip() or None
     FALLBACK_MODEL3 = (os.getenv("FALLBACK_MODEL3") or "").strip() or None
+    OLLAMA_FALLBACK_ENABLED = (
+        (os.getenv("OLLAMA_FALLBACK_ENABLED") or "true").strip().lower()
+        in ("1", "true", "yes", "on")
+    )
+    OLLAMA_BASE_URL = (os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").strip()
+    OLLAMA_MODEL = (os.getenv("OLLAMA_MODEL") or "qwen3.5:latest").strip()
+    try:
+        OLLAMA_TIMEOUT_SECONDS = int(
+            (os.getenv("OLLAMA_TIMEOUT_SECONDS") or "180").strip() or "180"
+        )
+    except ValueError as e:
+        raise EnvironmentError("OLLAMA_TIMEOUT_SECONDS must be an integer.") from e
+    if OLLAMA_TIMEOUT_SECONDS < 1:
+        raise EnvironmentError("OLLAMA_TIMEOUT_SECONDS must be >= 1.")
     PREDICTION_DATA_SOURCE = (os.getenv("PREDICTION_DATA_SOURCE") or "fake").strip() or "fake"
     if PREDICTION_DATA_SOURCE not in ("fake", "database"):
         raise EnvironmentError(

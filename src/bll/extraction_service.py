@@ -50,7 +50,7 @@ class ExtractionService:
         if existing is not None:
             return ExtractAndSaveResult(entity=existing, created=False)
 
-        # Single successful OpenRouter call (fallbacks only if this model fails).
+        # Single successful LLM call (OpenRouter chain, then Ollama if needed).
         raw_result = self.llm_client.extract(posting_text)
 
         try:
