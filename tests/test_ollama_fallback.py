@@ -40,6 +40,7 @@ def test_ollama_extract_parses_native_chat_response(client):
     assert kwargs["json"]["model"] == "qwen3.5:latest"
     assert kwargs["json"]["format"] == "json"
     assert kwargs["json"]["think"] is False
+    assert kwargs["allow_redirects"] is False
 
 
 def test_ollama_extract_connection_error_mentions_serve(client):

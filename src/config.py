@@ -27,6 +27,10 @@ OLLAMA_FALLBACK_ENABLED: bool = (
 OLLAMA_BASE_URL: str = (os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").strip()
 OLLAMA_MODEL: str = (os.getenv("OLLAMA_MODEL") or "qwen3.5:latest").strip()
 OLLAMA_TIMEOUT_SECONDS: int = int((os.getenv("OLLAMA_TIMEOUT_SECONDS") or "180").strip() or "180")
+OLLAMA_ALLOW_REMOTE: bool = (
+    (os.getenv("OLLAMA_ALLOW_REMOTE") or "false").strip().lower()
+    in ("1", "true", "yes", "on")
+)
 # Max characters of posting text sent to any LLM (CLI + web). Default 100_000.
 MAX_POSTING_CHARS: int = int((os.getenv("MAX_POSTING_CHARS") or "100000").strip() or "100000")
 # Prediction series source: "fake" (data/fake CSVs) or "database" (future).
@@ -59,7 +63,7 @@ def validate_config() -> None:
     global OPENROUTER_API_KEY, DATABASE_URL, MODEL, FALLBACK_MODEL
     global FALLBACK_MODEL2, FALLBACK_MODEL3, PREDICTION_DATA_SOURCE
     global OLLAMA_FALLBACK_ENABLED, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT_SECONDS
-    global MAX_POSTING_CHARS
+    global OLLAMA_ALLOW_REMOTE, MAX_POSTING_CHARS
 
     missing = [
         name
@@ -83,7 +87,16 @@ def validate_config() -> None:
         (os.getenv("OLLAMA_FALLBACK_ENABLED") or "true").strip().lower()
         in ("1", "true", "yes", "on")
     )
-    OLLAMA_BASE_URL = (os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").strip()
+    OLLAMA_ALLOW_REMOTE = (
+        (os.getenv("OLLAMA_ALLOW_REMOTE") or "false").strip().lower()
+        in ("1", "true", "yes", "on")
+    )
+    from src.llm.ollama_url import validate_ollama_base_url
+
+    OLLAMA_BASE_URL = validate_ollama_base_url(
+        (os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").strip(),
+        allow_remote=OLLAMA_ALLOW_REMOTE,
+    )
     OLLAMA_MODEL = (os.getenv("OLLAMA_MODEL") or "qwen3.5:latest").strip()
     try:
         OLLAMA_TIMEOUT_SECONDS = int(

@@ -122,7 +122,8 @@ tests/                      # pytest suite
 |------|------|
 | `base_llm_client.py` | Abstract `extract(posting_text) -> dict` |
 | `openrouter_client.py` | Extraction via OpenRouter model chain; on total failure, optional Ollama |
-| `ollama_client.py` | Local Ollama `/api/chat` fallback (`format: json`, `think: false`) |
+| `ollama_client.py` | Local Ollama `/api/chat` fallback (`format: json`, `think: false`, no redirects) |
+| `ollama_url.py` | `OLLAMA_BASE_URL` loopback allowlist (SSRF guard; remote opt-in) |
 | `translation.py` | Leftover OpenRouter label helper (not used on the ingest path) |
 | `error_messages.py` | User-facing messages for 429 / API key / timeout / Ollama / connection |
 | `llm_client_factory.py` | Returns `OpenRouterClient` (Ollama is invoked from inside extract) |

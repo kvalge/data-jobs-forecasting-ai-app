@@ -10,6 +10,7 @@ import requests
 
 import src.config as config
 from src.llm.error_messages import describe_http_status, describe_request_exception
+from src.llm.ollama_url import validate_ollama_base_url
 from src.llm.openrouter_client import EXTRACTION_SYSTEM_PROMPT, OpenRouterClient
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,10 @@ class OllamaClient:
         if not model_name:
             raise ValueError("OLLAMA_MODEL is missing or empty")
 
-        base = (config.OLLAMA_BASE_URL or "http://127.0.0.1:11434").rstrip("/")
+        base = validate_ollama_base_url(
+            config.OLLAMA_BASE_URL or "http://127.0.0.1:11434",
+            allow_remote=bool(config.OLLAMA_ALLOW_REMOTE),
+        )
         url = f"{base}/api/chat"
 
         payload = {
@@ -45,7 +49,12 @@ class OllamaClient:
         logger.info("OpenRouter exhausted; trying Ollama model %s at %s", model_name, url)
 
         try:
-            response = requests.post(url, json=payload, timeout=timeout)
+            response = requests.post(
+                url,
+                json=payload,
+                timeout=timeout,
+                allow_redirects=False,
+            )
             response.raise_for_status()
         except requests.HTTPError as e:
             status = e.response.status_code if e.response is not None else "unknown"
