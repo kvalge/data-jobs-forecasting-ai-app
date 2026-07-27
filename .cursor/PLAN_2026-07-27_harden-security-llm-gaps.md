@@ -19,7 +19,7 @@
 | 3 | Allowlist `OLLAMA_BASE_URL` (SSRF guard) | Done (2026-07-27) |
 | 4 | Stricter post-LLM / review-path validation | Done (2026-07-27) |
 | 5 | Sanitize glossary TSV writes + safer errors to UI | Done (2026-07-27) |
-| 6 | CSRF + upload type checks + safer flash messages | Pending |
+| 6 | CSRF + upload type checks + safer flash messages | Done (2026-07-27) |
 | 7 | Transaction ownership (flush-only repos) | Pending |
 | 8 | Prediction `database` source fail-closed + UI catch | Pending |
 | 9 | User-selectable LLM mode (OpenRouter+Ollama vs Ollama-only) | Pending |
@@ -205,3 +205,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-27 (Step 3):** Added `validate_ollama_base_url` (loopback-only by default; `OLLAMA_ALLOW_REMOTE` opt-in). Enforced in `validate_config` and Ollama client; `allow_redirects=False` on Ollama POST. Tests in `tests/test_ollama_url.py`.
 - **2026-07-27 (Step 4):** Tightened DTO bounds (lengths, salary ge/le, skill caps); reject mismatched `skills`/`skills_en`; currency normalize; `validate_review_fields` on review save; preserve original skill labels in `update_review_fields`; UI note that LLM values are untrusted.
 - **2026-07-27 (Step 5):** Glossary field sanitization (no tab/newline, length cap) + atomic TSV write; stop appending provider bodies to user errors; generic DB/validation flash helpers with server-side logging.
+- **2026-07-27 (Step 6):** Flask-WTF CSRF on all mutating forms; require UTF-8 `.txt` uploads (reject binary/null); whitelist flash CSS categories; tests in `tests/test_web_csrf.py`.

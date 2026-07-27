@@ -11,6 +11,7 @@
   </p>
 
   <form method="post" action="{{ url_for('analysis.analysis_page') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <fieldset class="analysis-options">
       <legend>Analyses</legend>
       <label class="checkbox-label">

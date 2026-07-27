@@ -154,7 +154,9 @@ python -m src.web
 
 Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`). The server binds to **127.0.0.1** by default (`FLASK_HOST`) with the interactive debugger **off** (`FLASK_DEBUG=false`). There is no login — treat this as a local tool; do not expose it on a public interface without adding authentication.
 
-- Paste posting text and/or upload a `.txt` file, then **Extract and save**.- If a file is uploaded, it is used instead of the pasted text.
+- Paste posting text and/or upload a `.txt` file, then **Extract and save**.
+- Uploads must be UTF-8 `.txt` (other extensions and binary content are rejected). Mutating forms are CSRF-protected.
+- If a file is uploaded, it is used instead of the pasted text.
 - After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and English skills.
 - Saving edits updates the database. If you correct a non-English → English translation on the review page, that pair is saved to `glossary/original_en.tsv` (English→English pairs are skipped; glossary is not filled on initial extract).
 - Open **Analysis** (`/analysis`) to query top companies, top English roles, salary min/avg/max (nulls excluded), and top English skills. Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).

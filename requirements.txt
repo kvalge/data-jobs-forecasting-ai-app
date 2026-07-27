@@ -6,6 +6,7 @@ sqlalchemy
 alembic
 pytest
 flask
+flask-wtf
 matplotlib
 pandas
 numpy

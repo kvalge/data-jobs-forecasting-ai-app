@@ -14,6 +14,7 @@
   </p>
 
   <form method="post" action="{{ url_for('postings.update_posting', posting_id=posting.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
       <label for="company_name">Company name</label>
       <input id="company_name" name="company_name" type="text" value="{{ posting.company_name or '' }}">

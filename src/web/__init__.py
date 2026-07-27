@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from flask import Flask
+from flask_wtf import CSRFProtect
 
 from src.config import validate_config
 from src.dal.session import init_db
@@ -12,6 +13,7 @@ from src.web.routes.prediction import prediction_bp
 from src.web.runtime import resolve_secret_key
 
 _WEB_DIR = Path(__file__).resolve().parent
+csrf = CSRFProtect()
 
 
 def create_app(*, run_startup: bool = True) -> Flask:
@@ -30,6 +32,9 @@ def create_app(*, run_startup: bool = True) -> Flask:
     # Real web entry requires a strong SECRET_KEY unless FLASK_ENV=development.
     app.config["SECRET_KEY"] = resolve_secret_key(allow_dev_default=not run_startup)
     app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024  # 1 MB uploads
+    app.config.setdefault("WTF_CSRF_ENABLED", True)
+
+    csrf.init_app(app)
 
     if run_startup:
         validate_config()

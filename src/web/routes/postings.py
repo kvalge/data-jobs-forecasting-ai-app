@@ -2,6 +2,7 @@
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.utils import secure_filename
 
 from src.bll.glossary import add_entries, pairs_from_posting
 from src.bll.job_posting_validator import validate_review_fields
@@ -22,11 +23,23 @@ def _resolve_posting_text() -> str:
     """Prefer uploaded .txt file; otherwise use pasted text."""
     uploaded = request.files.get("posting_file")
     if uploaded and uploaded.filename:
+        safe_name = secure_filename(uploaded.filename) or uploaded.filename.strip()
+        if not safe_name.lower().endswith(".txt"):
+            raise ValueError("Uploaded file must be a .txt file")
+
         raw = uploaded.read()
+        if not raw:
+            raise ValueError("Uploaded file is empty")
+        if b"\x00" in raw:
+            raise ValueError("Uploaded file must be plain UTF-8 text (not binary)")
+
         try:
-            return raw.decode("utf-8").strip()
+            text = raw.decode("utf-8").strip()
         except UnicodeDecodeError as e:
             raise ValueError("Uploaded file must be UTF-8 text") from e
+        if not text:
+            raise ValueError("Uploaded file is empty")
+        return text
 
     return (request.form.get("posting_text") or "").strip()
 

@@ -15,7 +15,7 @@ import src.web.routes.postings as postings_routes
 @pytest.fixture
 def app():
     application = create_app(run_startup=False)
-    application.config.update(TESTING=True, SECRET_KEY="test-secret")
+    application.config.update(TESTING=True, SECRET_KEY="test-secret", WTF_CSRF_ENABLED=False)
     return application
 
 

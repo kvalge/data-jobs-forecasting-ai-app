@@ -22,7 +22,8 @@
       {% if messages %}
         <ul class="flash-list">
           {% for category, message in messages %}
-            <li class="flash flash-{{ category }}">{{ message }}</li>
+            {% set flash_cat = category if category in ['success', 'error', 'info'] else 'info' %}
+            <li class="flash flash-{{ flash_cat }}">{{ message }}</li>
           {% endfor %}
         </ul>
       {% endif %}
