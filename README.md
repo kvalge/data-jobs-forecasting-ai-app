@@ -6,7 +6,7 @@ An LLM-powered application that extracts structured data from data/AI job postin
 
 Paste a job posting's text into the app (CLI or web UI). An LLM (via OpenRouter, with local Ollama as last resort) extracts structured fields — company, role title (plus English), responsibilities, requirements, application deadline, salary, location, work type (onsite/hybrid/remote), nondiscrimination disclaimer (y/n), and required skills (plus English) — in **one successful API call** (extra OpenRouter models, then Ollama, only if earlier calls fail), then saves them to a PostgreSQL database.
 
-Once enough postings are collected, the app analyzes the data (most common roles, companies, skills, locations, salary ranges etc) to surface trends in the data/AI job market — and can point to forecasted momentum for specific skills or roles over the next 3, 6, or 12 months.
+Once enough postings are collected, the app analyzes the data (**top companies**, **top English roles**, **salary min/avg/max**, and **top English skills**) to surface trends in the data/AI job market — and can point to forecasted momentum for specific skills or roles over the next 3, 6, or 12 months. Location/country/city are stored on each posting for review, but they are not separate analysis charts yet.
 
 ## Sample analyses
 
@@ -76,6 +76,7 @@ The planned functionalities have been implemented. Due to the small amount of re
    pip install -r requirements.txt
    ```
 
+   Versions are pinned in `requirements.txt` for reproducible installs. **Prophet on Windows** can be fragile: install may need a working C/C++ toolchain (and sometimes extra CmdStan setup). If `prophet` fails to install or import, you can still use the rest of the app; prediction runs that select Prophet will fail until it is available — pick other models or use a Linux/WSL environment for Prophet-heavy work.
 3. Copy `.env.example` to `.env` and fill in your own values:
 
    ```
@@ -177,7 +178,7 @@ From the project root (venv activated):
 pytest
 ```
 
-Tests cover config validation, domain rules, content-hash dedup (LLM mocked), OpenRouter model chain + Ollama fallback (HTTP mocked), skill get-or-create, analysis aggregations (in-memory SQLite), prediction baseline/models/orchestration (fake mini datasets; Flask prediction mocked), and Flask insert/analysis/prediction routes (ingest/DB mocked). They do not call OpenRouter, Ollama, or require PostgreSQL.
+Tests cover config validation, domain rules, content-hash dedup (LLM mocked), OpenRouter model chain + Ollama fallback (HTTP mocked), posting size / Ollama URL / CSRF / web runtime hardening, LLM provider mode + metadata logging, skill get-or-create, analysis aggregations (in-memory SQLite), prediction baseline/models/orchestration (fake mini datasets; Flask prediction mocked), and Flask insert/analysis/prediction routes (ingest/DB mocked). They do not call OpenRouter, Ollama, or require PostgreSQL (`tests/conftest.py` blocks live LLM HTTP if a mock is missing).
 
 ## Database migrations (Alembic)
 

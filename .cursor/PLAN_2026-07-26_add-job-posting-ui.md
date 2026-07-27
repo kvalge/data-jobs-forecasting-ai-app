@@ -1,9 +1,9 @@
 # Plan: Add job posting UI (Flask)
 
 **Created:** 2026-07-26  
-**Status:** Complete (all planned steps done)  
+**Status:** Complete (archived) — all planned steps done. Analysis/forecasting delivered in later plans.
 **Scope:** Web UI to insert job postings (paste + `.txt` upload), reuse existing BLL/DAL/LLM pipeline.  
-**Out of scope:** Analysis/forecasting UI, auth, listing/editing postings, React/SPA.
+**Out of scope (at write time):** Analysis/forecasting UI, auth, listing/editing postings, React/SPA.
 
 **Stack choice:** Flask + Jinja2 + static CSS.  
 **Input:** Both paste textarea and file upload.  

@@ -1,9 +1,9 @@
 # Plan: Fix major + medium shortcomings (excl. analysis/forecasting)
 
 **Created:** 2026-07-26  
-**Status:** Complete (all planned steps done)  
+**Status:** Complete (archived) — forecasting and analysis were delivered later in `PLAN_2026-07-26_data-analysis-ui.md` and `PLAN_2026-07-26_prediction-forecasting.md`.  
 **Scope:** Address major and medium issues identified in project review.  
-**Out of scope:** Analysis / forecasting feature (menu option 2 remains a stub).
+**Out of scope (at write time):** Analysis / forecasting feature (CLI menu option 2 was still a stub then; that is no longer true).
 
 ---
 

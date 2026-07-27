@@ -45,7 +45,7 @@ tests/                      # pytest suite
 | File / folder | Role |
 |---------------|------|
 | `README.md` | Setup, CLI/web run, analysis charts, prediction notes, migrations |
-| `requirements.txt` | Core stack + Flask, matplotlib, pandas, sklearn, statsmodels, prophet |
+| `requirements.txt` | Pinned core stack + Flask, matplotlib, pandas, sklearn, statsmodels, prophet |
 | `.env.example` | API/DB/`MODEL`+fallbacks/Ollama/`SECRET_KEY`/`PREDICTION_DATA_SOURCE` |
 | `.gitignore` | `venv/`, `.env`, caches, `data/`, pytest artifacts |
 | `PROJECT_SUMMARY.md` | This document |

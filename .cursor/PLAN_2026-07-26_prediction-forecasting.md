@@ -1,7 +1,7 @@
 # Plan: Time series prediction on (fake → DB) job market data
 
 **Created:** 2026-07-26  
-**Status:** Complete (all planned steps done)  
+**Status:** Complete (archived) — all planned steps done.
 **Scope:** Synthetic historical data, baseline trend analysis, role/skill/salary forecasting (3/6/12 months), multi-model runs with user-selected training window and models, persist results + metainfo in PostgreSQL, Flask UI + CLI entry that call the same pipeline.  
 **Out of scope:** Auth, README chart embeds for forecasts, live OpenRouter usage in forecasting, replacing the existing descriptive `/analysis` page.
 

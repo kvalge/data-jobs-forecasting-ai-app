@@ -1,7 +1,8 @@
 # Plan: Data analysis UI + README charts
 
 **Created:** 2026-07-26  
-**Status:** Complete (all planned steps done)  
+**Status:** Complete (archived) — all planned steps done. Analysis UI delivered; see also prediction plan for forecasting.
+  
 **Scope:** Query aggregations from PostgreSQL, show them on a Flask page, write PNG charts into the repo, and show those images in README.  
 **Out of scope:** Forecasting, auth, date-range filters, CLI analysis commands.
 

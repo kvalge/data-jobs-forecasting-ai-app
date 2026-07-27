@@ -1,7 +1,7 @@
 # Plan: Harden security, LLM usage, and remaining product gaps
 
 **Created:** 2026-07-27  
-**Status:** In progress (Step 1 done)  
+**Status:** Complete (all steps 0–12 done, 2026-07-27)  
 **Scope:** Fix high/medium shortcomings found in a full-project review after OpenRouter → Ollama fallback landed. Prioritize security when calling LLMs via OpenRouter API or local Ollama, user-selectable LLM provider mode (OpenRouter+Ollama vs Ollama-only), privacy-safe LLM request metadata logging, stricter validation of model output before persistence, web hardening for a portfolio/local app, and a few integrity/ops gaps.  
 **Out of scope:** Full multi-user auth product, production Kubernetes/Docker packaging, implementing live `DatabaseSource` aggregates end-to-end (only guard/reject until ready), redesigning the analysis/prediction UIs, swapping the primary LLM provider stack beyond the configured modes below.
 
@@ -25,7 +25,7 @@
 | 9 | User-selectable LLM mode (OpenRouter+Ollama vs Ollama-only) | Done (2026-07-27) |
 | 10 | LLM request metadata logging (privacy-safe) | Done (2026-07-27) |
 | 11 | LLM client cleanup (narrow recoverable errors, orchestrator) | Done (2026-07-27) |
-| 12 | Dead code / docs / pinned deps / tests | Pending |
+| 12 | Dead code / docs / pinned deps / tests | Done (2026-07-27) |
 
 After each completed step: update this table + notes below, propose a git commit message in chat, then ask permission before the next step.
 
@@ -211,3 +211,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-27 (Step 9):** Added `LLM_PROVIDER_MODE` (`openrouter_ollama` / `ollama_only`); mode-aware config validation; factory returns OllamaClient for local-only; docs + tests.
 - **2026-07-27 (Step 10):** Privacy-safe LLM metadata NDJSON logger (`logs/llm_requests.ndjson`); hooked into OpenRouter/Ollama attempts + extraction validation; tests in `tests/test_llm_request_metadata.py`; updated fallback-chain mocks for `fallback_used`/`attempt_index` kwargs.
 - **2026-07-27 (Step 11):** Narrowed recoverable LLM errors (no TypeError/KeyError/IndexError); moved Ollama fallback into `OpenRouterWithOllamaFallback` via factory; deleted unused `translation.py` + tests; documented `think: false` / Ollama timeout guidance.
+- **2026-07-27 (Step 12):** Pinned `requirements.txt`; README analysis metrics + Prophet/Windows note; archived older `.cursor` plans (stub language clarified); `logs/` already gitignored; autouse live-LLM HTTP guard in `tests/conftest.py` + `tests/test_no_live_llm.py`. Prior step tests cover posting size, Ollama URL, DTO/glossary/CSRF/runtime/mode/metadata.

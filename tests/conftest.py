@@ -3,8 +3,29 @@ from __future__ import annotations
 import os
 
 import pytest
+import requests
 
 import src.config as config
+
+
+@pytest.fixture(autouse=True)
+def block_live_llm_http(monkeypatch):
+    """Fail fast if a test accidentally hits OpenRouter or local Ollama."""
+    real_request = requests.sessions.Session.request
+
+    def guarded(self, method, url, *args, **kwargs):
+        url_s = str(url).lower()
+        if "openrouter.ai" in url_s:
+            raise RuntimeError(
+                "Live OpenRouter HTTP is forbidden in tests — mock the client HTTP call"
+            )
+        if ":11434" in url_s or "/api/chat" in url_s:
+            raise RuntimeError(
+                "Live Ollama HTTP is forbidden in tests — mock the client HTTP call"
+            )
+        return real_request(self, method, url, *args, **kwargs)
+
+    monkeypatch.setattr(requests.sessions.Session, "request", guarded)
 
 
 @pytest.fixture
