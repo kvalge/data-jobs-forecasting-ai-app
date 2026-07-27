@@ -70,11 +70,11 @@ tests/                      # pytest suite
 
 | File | Role |
 |------|------|
-| `posting_ingest.py` | Shared CLI/web entry: session → `ExtractionService.extract_and_save` |
-| `extraction_service.py` | Dedup by hash → one LLM extract (EN in same JSON) → validate → save |
+| `posting_ingest.py` | Shared CLI/web entry: short lookup session → LLM (no session) → short save session |
+| `extraction_service.py` | Hash helpers, LLM extract → validate → entity; save with race re-check |
 | `job_posting_validator.py` | Domain rules (non-empty title, salary range, drop blank skills) |
 | `glossary.py` | Lookup + save user-corrected original→English pairs (skip en→en) |
-| `analysis_service.py` | Descriptive aggregates (top companies/roles/skills, salary stats) |
+| `analysis_service.py` | Thin façade: clamp top-N, delegate aggregates to `AnalysisRepository` |
 | `chart_export.py` | matplotlib PNGs under `docs/analysis/` |
 | `prediction_service.py` | Orchestrates baseline + forecast models; timings; persist run |
 | `prediction_export.py` | Writes `docs/prediction/model_results.md` |
@@ -104,6 +104,7 @@ tests/                      # pytest suite
 | `base_repository.py` | Abstract CRUD |
 | `job_posting_repository.py` | Save/get/delete/update (flush-only; no commit) |
 | `skill_repository.py` | `get_or_create` by lowercase English `name`; savepoint on unique race |
+| `analysis_repository.py` | Descriptive SQL aggregates (companies, roles, salary, skills) |
 | `forecast_repository.py` | Persist/list prediction runs and results (flush-only) |
 
 ### Prediction (`src/prediction/`)
@@ -192,7 +193,7 @@ flowchart TD
 ### Descriptive analysis flow
 
 1. Web `/analysis` — choose companies / roles / salary / skills and top N.
-2. `analysis_service` queries PostgreSQL; null salaries excluded per metric.
+2. `AnalysisRepository` (via `analysis_service`) queries PostgreSQL; null salaries excluded per metric.
 3. Results shown as tables; matching PNGs written to `docs/analysis/` (README embeds them).
 
 ### Prediction / forecasting flow
@@ -221,12 +222,12 @@ raw posting text (str)
 | # | Where | What happens |
 |---|--------|----------------|
 | 1 | CLI / web route | Obtain UTF-8 posting text |
-| 2 | `ingest_posting_text` | Open `session_scope`, call extraction service |
-| 3 | `ExtractionService` | Hash lookup; skip LLM if duplicate |
-| 4 | `get_llm_client().extract` | OpenRouter chain and/or Ollama via factory composition |
+| 2 | `ingest_posting_text` | Size check; short sessions around lookup/save only |
+| 3 | Hash lookup | Skip LLM if duplicate content_hash |
+| 4 | `get_llm_client().extract` | OpenRouter/Ollama; **no DB session held** |
 | 5 | DTO + `validate_extraction_dto` | Schema + business rules |
 | 6 | Extract JSON + glossary | English role title and skills (no second LLM round-trip) |
-| 7 | Repository `save` | Insert posting; `get_or_create` skills; commit |
+| 7 | Save session | `JobPostingRepository.save` + skill get_or_create; commit via `session_scope` |
 | 8 | Web edit (optional) | `update_review_fields`; glossary only for corrected non-identity translations |
 
 ### Field mapping (high level)

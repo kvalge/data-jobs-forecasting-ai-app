@@ -10,6 +10,7 @@ from src.dal.job_posting_repository import JobPostingRepository
 from src.domain.job_posting_entity import JobPostingEntity
 from src.domain.posting_hash import hash_posting_text
 from src.dto.job_posting_extraction_dto import JobPostingExtractionDTO
+from src.llm.base_llm_client import BaseLLMClient
 from src.llm.llm_client_factory import get_llm_client
 from src.llm.request_metadata import (
     begin_extract_context,
@@ -43,24 +44,33 @@ class ExtractionService:
 
     English role/skill labels come from the same extraction JSON (plus glossary
     overrides). No separate translation API calls on the ingest path.
+
+    Preferred production flow (see ``posting_ingest``): short DB lookup session,
+    LLM with no open session, then short save session. ``extract_and_save`` remains
+    for tests that inject a fake repository without real connection pooling.
     """
 
-    def __init__(self, job_posting_repository: JobPostingRepository):
+    def __init__(
+        self,
+        job_posting_repository: JobPostingRepository | None = None,
+        llm_client: BaseLLMClient | None = None,
+    ):
         self.job_posting_repository = job_posting_repository
-        self.llm_client = get_llm_client()
+        self.llm_client = llm_client or get_llm_client()
 
-    def extract_and_save(self, posting_text: str) -> ExtractAndSaveResult:
+    def find_by_content_hash(
+        self, repository: JobPostingRepository, posting_text: str
+    ) -> JobPostingEntity | None:
+        return repository.get_by_content_hash(hash_posting_text(posting_text))
+
+    def extract_entity(self, posting_text: str) -> JobPostingEntity:
+        """Call LLM and build a domain entity. Must not open or hold a DB session."""
         content_hash = hash_posting_text(posting_text)
-        existing = self.job_posting_repository.get_by_content_hash(content_hash)
-        if existing is not None:
-            return ExtractAndSaveResult(entity=existing, created=False)
-
         begin_extract_context(
             posting_chars=len(posting_text),
             content_hash=content_hash,
         )
         try:
-            # Single successful LLM call (OpenRouter chain, then Ollama if needed).
             raw_result = self.llm_client.extract(posting_text)
 
             try:
@@ -76,13 +86,37 @@ class ExtractionService:
                 raise ValueError(f"LLM output failed domain validation: {e}") from e
 
             log_validation_result(accepted=True)
-
-            entity = self._dto_to_entity(dto, posting_text, content_hash)
-            saved = self.job_posting_repository.save(entity)
-            # Glossary is updated only when the user revises translations on the review page.
-            return ExtractAndSaveResult(entity=saved, created=True)
+            return self._dto_to_entity(dto, posting_text, content_hash)
         finally:
             clear_extract_context()
+
+    def save_extracted(
+        self, repository: JobPostingRepository, entity: JobPostingEntity
+    ) -> ExtractAndSaveResult:
+        """Persist after a fresh hash check (handles rare concurrent insert races)."""
+        if entity.content_hash:
+            existing = repository.get_by_content_hash(entity.content_hash)
+            if existing is not None:
+                return ExtractAndSaveResult(entity=existing, created=False)
+
+        saved = repository.save(entity)
+        return ExtractAndSaveResult(entity=saved, created=True)
+
+    def extract_and_save(self, posting_text: str) -> ExtractAndSaveResult:
+        """Lookup → extract → save using the injected repository (tests / simple callers).
+
+        Production ingest should use ``posting_ingest.ingest_posting_text``, which
+        closes the DB session before the LLM call.
+        """
+        if self.job_posting_repository is None:
+            raise ValueError("job_posting_repository is required for extract_and_save")
+
+        existing = self.find_by_content_hash(self.job_posting_repository, posting_text)
+        if existing is not None:
+            return ExtractAndSaveResult(entity=existing, created=False)
+
+        entity = self.extract_entity(posting_text)
+        return self.save_extracted(self.job_posting_repository, entity)
 
     def _dto_to_entity(
         self,
