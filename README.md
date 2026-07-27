@@ -108,6 +108,7 @@ The planned functionalities have been implemented. Due to the small amount of re
    - `FLASK_HOST` defaults to `127.0.0.1` (loopback). The app has **no authentication** — do not bind to `0.0.0.0` on an untrusted network.
    - `FLASK_DEBUG` defaults to `false`. Only enable for local debugging; never expose the debugger remotely.
    - `MAX_POSTING_CHARS` caps posting text before any LLM call (default `100000`). Oversized paste/upload is rejected early (stricter than the 1 MB upload byte limit).
+   - `LLM_METADATA_LOG_ENABLED` / `LLM_METADATA_LOG_PATH` write privacy-safe NDJSON metadata per LLM attempt (provider, model, status, timing, tokens if available, fallback flag, validation result). Prompts and responses are never logged. Default path: `logs/llm_requests.ndjson`.
    - `PREDICTION_DATA_SOURCE` is optional (`fake` default). `database` is reserved but **rejected at startup** until `DatabaseSource` is implemented.
    Example `DATABASE_URL` shape:
 

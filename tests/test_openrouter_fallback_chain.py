@@ -19,7 +19,7 @@ def test_extract_stops_after_first_success(client, monkeypatch):
     )
     calls: list[str] = []
 
-    def fake_call(model_name, posting_text):
+    def fake_call(model_name, posting_text, *, fallback_used=False, attempt_index=0):
         calls.append(model_name)
         return {"role_title": "Dev", "skills": []}
 
@@ -36,7 +36,7 @@ def test_extract_uses_fallback_only_after_failure(client, monkeypatch):
     )
     calls: list[str] = []
 
-    def fake_call(model_name, posting_text):
+    def fake_call(model_name, posting_text, *, fallback_used=False, attempt_index=0):
         calls.append(model_name)
         if model_name == "model-a":
             raise RuntimeError("AI rate limit for model 'model-a' (HTTP 429)")
@@ -58,7 +58,7 @@ def test_extract_falls_back_to_ollama_after_openrouter_exhausted(client, monkeyp
     monkeypatch.setattr("src.llm.openrouter_client.config.OLLAMA_FALLBACK_ENABLED", True)
     monkeypatch.setattr("src.llm.openrouter_client.config.OLLAMA_MODEL", "qwen3.5:latest")
 
-    def fake_call(model_name, posting_text):
+    def fake_call(model_name, posting_text, *, fallback_used=False, attempt_index=0):
         raise RuntimeError(f"AI rate limit for model '{model_name}' (HTTP 429)")
 
     monkeypatch.setattr(client, "_call_model", fake_call)
@@ -69,7 +69,9 @@ def test_extract_falls_back_to_ollama_after_openrouter_exhausted(client, monkeyp
 
     result = client.extract("posting")
     assert result["role_title"] == "Local Dev"
-    ollama.extract.assert_called_once_with("posting")
+    ollama.extract.assert_called_once_with(
+        "posting", fallback_used=True, attempt_index=2
+    )
 
 
 def test_extract_skips_ollama_when_disabled(client, monkeypatch):
@@ -79,7 +81,7 @@ def test_extract_skips_ollama_when_disabled(client, monkeypatch):
     )
     monkeypatch.setattr("src.llm.openrouter_client.config.OLLAMA_FALLBACK_ENABLED", False)
 
-    def fake_call(model_name, posting_text):
+    def fake_call(model_name, posting_text, *, fallback_used=False, attempt_index=0):
         raise RuntimeError("AI rate limit (HTTP 429)")
 
     monkeypatch.setattr(client, "_call_model", fake_call)

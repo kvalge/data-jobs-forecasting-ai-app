@@ -23,7 +23,7 @@
 | 7 | Transaction ownership (flush-only repos) | Done (2026-07-27) |
 | 8 | Prediction `database` source fail-closed + UI catch | Done (2026-07-27) |
 | 9 | User-selectable LLM mode (OpenRouter+Ollama vs Ollama-only) | Done (2026-07-27) |
-| 10 | LLM request metadata logging (privacy-safe) | Pending |
+| 10 | LLM request metadata logging (privacy-safe) | Done (2026-07-27) |
 | 11 | LLM client cleanup (narrow recoverable errors, orchestrator) | Pending |
 | 12 | Dead code / docs / pinned deps / tests | Pending |
 
@@ -209,3 +209,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-27 (Step 7):** `session_scope` commits on success; `JobPostingRepository` flush-only (savepoint on IntegrityError); removed extra commit from prediction persist; `tests/test_session_scope.py`.
 - **2026-07-27 (Step 8):** Fail-closed `PREDICTION_DATA_SOURCE=database` in `validate_config` + factory; catch `NotImplementedError` in CLI/Flask; docs updated.
 - **2026-07-27 (Step 9):** Added `LLM_PROVIDER_MODE` (`openrouter_ollama` / `ollama_only`); mode-aware config validation; factory returns OllamaClient for local-only; docs + tests.
+- **2026-07-27 (Step 10):** Privacy-safe LLM metadata NDJSON logger (`logs/llm_requests.ndjson`); hooked into OpenRouter/Ollama attempts + extraction validation; tests in `tests/test_llm_request_metadata.py`; updated fallback-chain mocks for `fallback_used`/`attempt_index` kwargs.

@@ -6,6 +6,12 @@ import requests
 import src.config as config
 from src.llm.base_llm_client import BaseLLMClient
 from src.llm.error_messages import describe_http_status, describe_request_exception
+from src.llm.request_metadata import (
+    categorize_exception,
+    log_llm_request,
+    timed_llm_call,
+    token_usage_from_openrouter,
+)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -56,7 +62,14 @@ Rules:
 class OpenRouterClient(BaseLLMClient):
     """LLM client implementation for the OpenRouter API."""
 
-    def _call_model(self, model_name: str | None, posting_text: str) -> dict:
+    def _call_model(
+        self,
+        model_name: str | None,
+        posting_text: str,
+        *,
+        fallback_used: bool = False,
+        attempt_index: int = 0,
+    ) -> dict:
         if not model_name or not str(model_name).strip():
             raise ValueError("Model name is missing or empty")
 
@@ -73,23 +86,80 @@ class OpenRouterClient(BaseLLMClient):
             "response_format": {"type": "json_object"},
         }
 
-        try:
-            response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=30)
-            response.raise_for_status()
-        except requests.HTTPError as e:
-            status = e.response.status_code if e.response is not None else "unknown"
-            raise RuntimeError(
-                describe_http_status(status, model_name, e.response)
-            ) from e
-        except requests.RequestException as e:
-            raise RuntimeError(describe_request_exception(e, model_name)) from e
+        with timed_llm_call() as timer:
+            try:
+                response = requests.post(
+                    OPENROUTER_URL, headers=headers, json=payload, timeout=30
+                )
+                response.raise_for_status()
+            except requests.HTTPError as e:
+                status = e.response.status_code if e.response is not None else "unknown"
+                err = RuntimeError(describe_http_status(status, model_name, e.response))
+                log_llm_request(
+                    provider="openrouter",
+                    model=model_name,
+                    status="failure",
+                    response_time_ms=timer.mark(),
+                    fallback_used=fallback_used,
+                    attempt_index=attempt_index,
+                    error_category=categorize_exception(err),
+                )
+                raise err from e
+            except requests.RequestException as e:
+                err = RuntimeError(describe_request_exception(e, model_name))
+                log_llm_request(
+                    provider="openrouter",
+                    model=model_name,
+                    status="failure",
+                    response_time_ms=timer.mark(),
+                    fallback_used=fallback_used,
+                    attempt_index=attempt_index,
+                    error_category=categorize_exception(e),
+                )
+                raise err from e
 
-        try:
-            data = response.json()
-        except json.JSONDecodeError as e:
-            raise ValueError(f"OpenRouter returned non-JSON body for model '{model_name}'") from e
+            try:
+                data = response.json()
+            except json.JSONDecodeError as e:
+                err = ValueError(
+                    f"OpenRouter returned non-JSON body for model '{model_name}'"
+                )
+                log_llm_request(
+                    provider="openrouter",
+                    model=model_name,
+                    status="failure",
+                    response_time_ms=timer.mark(),
+                    fallback_used=fallback_used,
+                    attempt_index=attempt_index,
+                    error_category="parse_error",
+                )
+                raise err from e
 
-        return self._parse_message_content(data, model_name)
+            try:
+                parsed = self._parse_message_content(data, model_name)
+            except Exception as e:
+                log_llm_request(
+                    provider="openrouter",
+                    model=model_name,
+                    status="failure",
+                    response_time_ms=timer.mark(),
+                    token_usage=token_usage_from_openrouter(data),
+                    fallback_used=fallback_used,
+                    attempt_index=attempt_index,
+                    error_category=categorize_exception(e),
+                )
+                raise
+
+        log_llm_request(
+            provider="openrouter",
+            model=model_name,
+            status="success",
+            response_time_ms=timer.elapsed_ms,
+            token_usage=token_usage_from_openrouter(data),
+            fallback_used=fallback_used,
+            attempt_index=attempt_index,
+        )
+        return parsed
 
     def _parse_message_content(self, data: dict, model_name: str) -> dict:
         """Extract and parse the assistant JSON object from an API response body."""
@@ -145,10 +215,40 @@ class OpenRouterClient(BaseLLMClient):
 
         errors: list[str] = []
         last_error: BaseException | None = None
-        for model_name in models:
+        for index, model_name in enumerate(models):
             try:
-                return self._call_model(model_name, posting_text)
+                return self._call_model(
+                    model_name,
+                    posting_text,
+                    fallback_used=index > 0,
+                    attempt_index=index,
+                )
             except _RECOVERABLE_ERRORS as err:
+                # #region agent log
+                try:
+                    import json as _agent_json
+                    from pathlib import Path as _AgentPath
+                    _agent_payload = {
+                        "sessionId": "2a8b08",
+                        "runId": "step10-verify",
+                        "hypothesisId": "A",
+                        "location": "openrouter_client.py:extract",
+                        "message": "recoverable_error_in_model_chain",
+                        "data": {
+                            "model": model_name,
+                            "index": index,
+                            "exc_type": type(err).__name__,
+                            "exc_msg": str(err)[:200],
+                        },
+                        "timestamp": __import__("time").time_ns() // 1_000_000,
+                    }
+                    with (_AgentPath(__file__).resolve().parents[2] / "debug-2a8b08.log").open(
+                        "a", encoding="utf-8"
+                    ) as _agent_f:
+                        _agent_f.write(_agent_json.dumps(_agent_payload) + "\n")
+                except OSError:
+                    pass
+                # #endregion
                 last_error = err
                 errors.append(f"{model_name}: {err}")
                 continue
@@ -159,7 +259,35 @@ class OpenRouterClient(BaseLLMClient):
             try:
                 from src.llm.ollama_client import OllamaClient
 
-                return OllamaClient().extract(posting_text)
+                # #region agent log
+                try:
+                    import json as _agent_json
+                    from pathlib import Path as _AgentPath
+                    _agent_payload = {
+                        "sessionId": "2a8b08",
+                        "runId": "step10-verify",
+                        "hypothesisId": "B",
+                        "location": "openrouter_client.py:extract",
+                        "message": "calling_ollama_fallback",
+                        "data": {
+                            "attempt_index": len(models),
+                            "fallback_used": True,
+                            "openrouter_errors": len(errors),
+                        },
+                        "timestamp": __import__("time").time_ns() // 1_000_000,
+                    }
+                    with (_AgentPath(__file__).resolve().parents[2] / "debug-2a8b08.log").open(
+                        "a", encoding="utf-8"
+                    ) as _agent_f:
+                        _agent_f.write(_agent_json.dumps(_agent_payload) + "\n")
+                except OSError:
+                    pass
+                # #endregion
+                return OllamaClient().extract(
+                    posting_text,
+                    fallback_used=True,
+                    attempt_index=len(models),
+                )
             except _RECOVERABLE_ERRORS as ollama_error:
                 last_error = ollama_error
                 raise RuntimeError(

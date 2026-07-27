@@ -11,6 +11,11 @@ from src.domain.job_posting_entity import JobPostingEntity
 from src.domain.posting_hash import hash_posting_text
 from src.dto.job_posting_extraction_dto import JobPostingExtractionDTO
 from src.llm.llm_client_factory import get_llm_client
+from src.llm.request_metadata import (
+    begin_extract_context,
+    clear_extract_context,
+    log_validation_result,
+)
 
 
 @dataclass(frozen=True)
@@ -50,23 +55,34 @@ class ExtractionService:
         if existing is not None:
             return ExtractAndSaveResult(entity=existing, created=False)
 
-        # Single successful LLM call (OpenRouter chain, then Ollama if needed).
-        raw_result = self.llm_client.extract(posting_text)
-
+        begin_extract_context(
+            posting_chars=len(posting_text),
+            content_hash=content_hash,
+        )
         try:
-            dto = JobPostingExtractionDTO(**raw_result)
-        except ValidationError as e:
-            raise ValueError(f"LLM output failed schema validation: {e}") from e
+            # Single successful LLM call (OpenRouter chain, then Ollama if needed).
+            raw_result = self.llm_client.extract(posting_text)
 
-        try:
-            dto = validate_extraction_dto(dto)
-        except ValueError as e:
-            raise ValueError(f"LLM output failed domain validation: {e}") from e
+            try:
+                dto = JobPostingExtractionDTO(**raw_result)
+            except ValidationError as e:
+                log_validation_result(accepted=False, error_category="validation_failure")
+                raise ValueError(f"LLM output failed schema validation: {e}") from e
 
-        entity = self._dto_to_entity(dto, posting_text, content_hash)
-        saved = self.job_posting_repository.save(entity)
-        # Glossary is updated only when the user revises translations on the review page.
-        return ExtractAndSaveResult(entity=saved, created=True)
+            try:
+                dto = validate_extraction_dto(dto)
+            except ValueError as e:
+                log_validation_result(accepted=False, error_category="validation_failure")
+                raise ValueError(f"LLM output failed domain validation: {e}") from e
+
+            log_validation_result(accepted=True)
+
+            entity = self._dto_to_entity(dto, posting_text, content_hash)
+            saved = self.job_posting_repository.save(entity)
+            # Glossary is updated only when the user revises translations on the review page.
+            return ExtractAndSaveResult(entity=saved, created=True)
+        finally:
+            clear_extract_context()
 
     def _dto_to_entity(
         self,

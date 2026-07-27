@@ -47,6 +47,15 @@ OLLAMA_ALLOW_REMOTE: bool = (
 )
 # Max characters of posting text sent to any LLM (CLI + web). Default 100_000.
 MAX_POSTING_CHARS: int = int((os.getenv("MAX_POSTING_CHARS") or "100000").strip() or "100000")
+# Privacy-safe LLM request metadata (NDJSON). Default on.
+LLM_METADATA_LOG_ENABLED: bool = (
+    (os.getenv("LLM_METADATA_LOG_ENABLED") or "true").strip().lower()
+    in ("1", "true", "yes", "on")
+)
+LLM_METADATA_LOG_PATH: str = (
+    (os.getenv("LLM_METADATA_LOG_PATH") or "logs/llm_requests.ndjson").strip()
+    or "logs/llm_requests.ndjson"
+)
 # Prediction series source: "fake" (data/fake CSVs) or "database" (future).
 PREDICTION_DATA_SOURCE: str = (os.getenv("PREDICTION_DATA_SOURCE") or "fake").strip() or "fake"
 
@@ -91,6 +100,7 @@ def validate_config() -> None:
     global FALLBACK_MODEL2, FALLBACK_MODEL3, PREDICTION_DATA_SOURCE, LLM_PROVIDER_MODE
     global OLLAMA_FALLBACK_ENABLED, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT_SECONDS
     global OLLAMA_ALLOW_REMOTE, MAX_POSTING_CHARS
+    global LLM_METADATA_LOG_ENABLED, LLM_METADATA_LOG_PATH
 
     LLM_PROVIDER_MODE = normalize_llm_provider_mode(os.getenv("LLM_PROVIDER_MODE"))
 
@@ -152,6 +162,14 @@ def validate_config() -> None:
         raise EnvironmentError("MAX_POSTING_CHARS must be an integer.") from e
     if MAX_POSTING_CHARS < 1:
         raise EnvironmentError("MAX_POSTING_CHARS must be >= 1.")
+    LLM_METADATA_LOG_ENABLED = (
+        (os.getenv("LLM_METADATA_LOG_ENABLED") or "true").strip().lower()
+        in ("1", "true", "yes", "on")
+    )
+    LLM_METADATA_LOG_PATH = (
+        (os.getenv("LLM_METADATA_LOG_PATH") or "logs/llm_requests.ndjson").strip()
+        or "logs/llm_requests.ndjson"
+    )
     PREDICTION_DATA_SOURCE = (os.getenv("PREDICTION_DATA_SOURCE") or "fake").strip() or "fake"
     if PREDICTION_DATA_SOURCE not in ("fake", "database"):
         raise EnvironmentError(

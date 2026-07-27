@@ -126,6 +126,7 @@ tests/                      # pytest suite
 | `ollama_url.py` | `OLLAMA_BASE_URL` loopback allowlist (SSRF guard; remote opt-in) |
 | `translation.py` | Leftover OpenRouter label helper (not used on the ingest path) |
 | `error_messages.py` | User-facing messages for 429 / API key / timeout / Ollama / connection |
+| `request_metadata.py` | Privacy-safe NDJSON LLM request/validation metadata logger |
 | `llm_client_factory.py` | Returns OpenRouter or Ollama client from `LLM_PROVIDER_MODE` |
 
 ### Web (`src/web/`)
