@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.bll.prediction_history import ForecastHistory
 from src.bll.prediction_service import PredictionRunOutcome
 from src.web import create_app
 import src.web.routes.prediction as prediction_routes
@@ -22,17 +23,11 @@ def client(app):
 
 
 def test_get_prediction_page(client, monkeypatch):
-    class FakeScope:
-        def __enter__(self):
-            return MagicMock()
-
-        def __exit__(self, *args):
-            return False
-
-    repo = MagicMock()
-    repo.list_recent_runs.return_value = []
-    monkeypatch.setattr(prediction_routes, "session_scope", lambda: FakeScope())
-    monkeypatch.setattr(prediction_routes, "ForecastRepository", lambda session: repo)
+    monkeypatch.setattr(
+        prediction_routes,
+        "load_forecast_history",
+        lambda **kwargs: ForecastHistory(recent_runs=[], preview_results=[]),
+    )
 
     response = client.get("/prediction")
     assert response.status_code == 200
@@ -41,18 +36,11 @@ def test_get_prediction_page(client, monkeypatch):
 
 
 def test_post_prediction_runs_service(client, monkeypatch):
-    class FakeScope:
-        def __enter__(self):
-            return MagicMock()
-
-        def __exit__(self, *args):
-            return False
-
-    repo = MagicMock()
-    repo.list_recent_runs.return_value = []
-    repo.list_results.return_value = []
-    monkeypatch.setattr(prediction_routes, "session_scope", lambda: FakeScope())
-    monkeypatch.setattr(prediction_routes, "ForecastRepository", lambda session: repo)
+    monkeypatch.setattr(
+        prediction_routes,
+        "load_forecast_history",
+        lambda **kwargs: ForecastHistory(recent_runs=[], preview_results=[]),
+    )
 
     outcome = PredictionRunOutcome(
         run_id=7,

@@ -45,11 +45,30 @@ class SkillRepository(BaseRepository[SkillEntity]):
         if orm_obj is not None:
             self.session.delete(orm_obj)
 
-    def get_or_create(self, display_name: str, display_name_en: str | None = None) -> SkillORM:
+    def get_by_normalized_names(self, names: list[str]) -> dict[str, SkillORM]:
+        """Return existing skills keyed by lowercase English name (one query)."""
+        normalized = sorted({(n or "").strip().lower() for n in names if (n or "").strip()})
+        if not normalized:
+            return {}
+        rows = (
+            self.session.query(SkillORM)
+            .filter(SkillORM.name.in_(normalized))
+            .all()
+        )
+        return {row.name: row for row in rows}
+
+    def get_or_create(
+        self,
+        display_name: str,
+        display_name_en: str | None = None,
+        *,
+        cache: dict[str, SkillORM] | None = None,
+    ) -> SkillORM:
         """Return existing skill or create one.
 
         Unique key `name` is lowercase English (`display_name_en`).
         `display_name` keeps the first-seen original label.
+        Optional ``cache`` avoids repeated SELECTs within one save.
         """
         original = display_name.strip()
         english = (display_name_en or display_name).strip() or original
@@ -59,6 +78,13 @@ class SkillRepository(BaseRepository[SkillEntity]):
             original = english
 
         normalized_name = english.lower()
+        if cache is not None and normalized_name in cache:
+            existing = cache[normalized_name]
+            if not existing.display_name_en and english:
+                existing.display_name_en = english
+                self.session.flush()
+            return existing
+
         existing = (
             self.session.query(SkillORM)
             .filter(SkillORM.name == normalized_name)
@@ -68,6 +94,8 @@ class SkillRepository(BaseRepository[SkillEntity]):
             if not existing.display_name_en and english:
                 existing.display_name_en = english
                 self.session.flush()
+            if cache is not None:
+                cache[normalized_name] = existing
             return existing
 
         try:
@@ -79,6 +107,8 @@ class SkillRepository(BaseRepository[SkillEntity]):
                 )
                 self.session.add(orm_obj)
                 self.session.flush()
+            if cache is not None:
+                cache[normalized_name] = orm_obj
             return orm_obj
         except IntegrityError:
             existing = (
@@ -88,6 +118,8 @@ class SkillRepository(BaseRepository[SkillEntity]):
             )
             if existing is None:
                 raise
+            if cache is not None:
+                cache[normalized_name] = existing
             return existing
 
     def _to_entity(self, orm_obj: SkillORM) -> SkillEntity:

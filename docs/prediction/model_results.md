@@ -2,14 +2,14 @@
 
 Auto-generated when you run **Prediction** in the web UI or CLI. Rows within each model are ordered by predicted value (highest first).
 
-- **Generated at:** 2026-07-27T23:23:53
+- **Generated at:** 2026-07-27T23:55:00
 - **Run id:** 99
 - **Status:** completed
 - **Training data source:** Fake / synthetic series (`data/fake/` CSVs)
 - **Training window (months):** 12
 - **Horizons:** 3
 - **Models:** baseline, rf
-- **Elapsed (seconds):** 1.663
+- **Elapsed (seconds):** 1.531
 
 ## Training data
 
@@ -19,8 +19,8 @@ Models were trained on generated job-market aggregates (not live PostgreSQL post
 
 | Model | Seconds |
 |-------|---------|
-| `baseline` | 0.024 |
-| `rf` | 1.579 |
+| `baseline` | 0.023 |
+| `rf` | 1.428 |
 
 ## Top roles & top skills (historical shortlist)
 

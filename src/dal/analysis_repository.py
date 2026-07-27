@@ -47,42 +47,15 @@ class AnalysisRepository:
         return [{"label": label, "count": int(count)} for label, count in rows]
 
     def salary_summary(self) -> dict[str, Any]:
-        """Min/avg/max salary stats; each metric ignores its own nulls."""
-        min_row = (
-            self.session.query(
-                func.min(JobPostingORM.salary_min),
-                func.count(JobPostingORM.salary_min),
-            )
-            .filter(JobPostingORM.salary_min.isnot(None))
-            .one()
-        )
-
-        avg_min_row = (
-            self.session.query(
-                func.avg(JobPostingORM.salary_min),
-                func.count(JobPostingORM.salary_min),
-            )
-            .filter(JobPostingORM.salary_min.isnot(None))
-            .one()
-        )
-
-        avg_max_row = (
-            self.session.query(
-                func.avg(JobPostingORM.salary_max),
-                func.count(JobPostingORM.salary_max),
-            )
-            .filter(JobPostingORM.salary_max.isnot(None))
-            .one()
-        )
-
-        max_row = (
-            self.session.query(
-                func.max(JobPostingORM.salary_max),
-                func.count(JobPostingORM.salary_max),
-            )
-            .filter(JobPostingORM.salary_max.isnot(None))
-            .one()
-        )
+        """Min/avg/max salary stats; each metric ignores its own nulls (one round-trip)."""
+        row = self.session.query(
+            func.min(JobPostingORM.salary_min),
+            func.count(JobPostingORM.salary_min),
+            func.avg(JobPostingORM.salary_min),
+            func.avg(JobPostingORM.salary_max),
+            func.count(JobPostingORM.salary_max),
+            func.max(JobPostingORM.salary_max),
+        ).one()
 
         def _float_or_none(value: Any) -> float | None:
             if value is None:
@@ -95,15 +68,20 @@ class AnalysisRepository:
                 return None
             return float(round(number))
 
+        # avg_salary_min uses count of non-null salary_min; avg_max uses salary_max count.
+        # min/max use the same underlying non-null populations as the counts above.
+        min_val, min_count, avg_min, avg_max, max_count, max_val = row
+        # Separate counts for avg_min vs avg_max: reuse min_count / max_count which match
+        # COUNT(salary_min) and COUNT(salary_max) respectively.
         return {
-            "min_salary_min": _round_salary(min_row[0]),
-            "min_salary_min_count": int(min_row[1] or 0),
-            "avg_salary_min": _round_salary(avg_min_row[0]),
-            "avg_salary_min_count": int(avg_min_row[1] or 0),
-            "avg_salary_max": _round_salary(avg_max_row[0]),
-            "avg_salary_max_count": int(avg_max_row[1] or 0),
-            "max_salary_max": _round_salary(max_row[0]),
-            "max_salary_max_count": int(max_row[1] or 0),
+            "min_salary_min": _round_salary(min_val),
+            "min_salary_min_count": int(min_count or 0),
+            "avg_salary_min": _round_salary(avg_min),
+            "avg_salary_min_count": int(min_count or 0),
+            "avg_salary_max": _round_salary(avg_max),
+            "avg_salary_max_count": int(max_count or 0),
+            "max_salary_max": _round_salary(max_val),
+            "max_salary_max_count": int(max_count or 0),
         }
 
     def top_skills(self, limit: int) -> list[dict[str, Any]]:

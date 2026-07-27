@@ -5,10 +5,9 @@ from __future__ import annotations
 from flask import Blueprint, flash, render_template, request
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.bll.prediction_history import load_forecast_history
 from src.bll.prediction_service import ALLOWED_HORIZONS, ALLOWED_WINDOWS, run_prediction
-from src.dal.forecast_repository import ForecastRepository
-from src.dal.session import session_scope
-from src.prediction.models.registry import ALL_RUNNABLE
+from src.prediction.models.registry import ALL_RUNNABLE, DEFAULT_MODELS
 
 prediction_bp = Blueprint("prediction", __name__)
 
@@ -27,12 +26,10 @@ def _parse_int_list(name: str, allowed: tuple[int, ...]) -> list[int]:
 
 @prediction_bp.route("/prediction", methods=["GET", "POST"])
 def prediction_page():
-    selected_models = list(ALL_RUNNABLE)
+    selected_models = list(DEFAULT_MODELS)
     selected_horizons = list(ALLOWED_HORIZONS)
     training_window = 24
     outcome = None
-    recent_runs = []
-    preview_results = []
 
     if request.method == "POST":
         selected_models = [
@@ -72,13 +69,11 @@ def prediction_page():
                 flash(f"Prediction failed: {e}", "error")
 
     try:
-        with session_scope() as session:
-            repo = ForecastRepository(session)
-            recent_runs = repo.list_recent_runs(limit=8)
-            if outcome and outcome.run_id:
-                preview_results = repo.list_results(outcome.run_id, limit=80)
-            elif recent_runs:
-                preview_results = repo.list_results(recent_runs[0].id, limit=80)
+        history = load_forecast_history(
+            run_id=outcome.run_id if outcome else None,
+        )
+        recent_runs = history.recent_runs
+        preview_results = history.preview_results
     except Exception:  # noqa: BLE001 — page still useful without DB history
         recent_runs = []
         preview_results = []
@@ -94,4 +89,5 @@ def prediction_page():
         outcome=outcome,
         recent_runs=recent_runs,
         preview_results=preview_results,
+        default_models=DEFAULT_MODELS,
     )

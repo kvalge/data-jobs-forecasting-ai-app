@@ -12,22 +12,20 @@ import src.config as config
 from src.llm.base_llm_client import BaseLLMClient
 from src.llm.error_messages import describe_http_status, describe_request_exception
 from src.llm.ollama_url import validate_ollama_base_url
-from src.llm.openrouter_client import EXTRACTION_SYSTEM_PROMPT, OpenRouterClient
+from src.llm.prompts import EXTRACTION_SYSTEM_PROMPT
 from src.llm.request_metadata import (
     categorize_exception,
     log_llm_request,
     timed_llm_call,
     token_usage_from_ollama,
 )
+from src.llm.response_parse import parse_message_content
 
 logger = logging.getLogger(__name__)
 
 
 class OllamaClient(BaseLLMClient):
     """Call a local Ollama model via the native /api/chat endpoint."""
-
-    def __init__(self) -> None:
-        self._parser = OpenRouterClient()
 
     def extract(
         self,
@@ -144,7 +142,7 @@ class OllamaClient(BaseLLMClient):
 
             openai_shaped = {"choices": [{"message": {"content": content}}]}
             try:
-                parsed = self._parser._parse_message_content(
+                parsed = parse_message_content(
                     openai_shaped, f"ollama/{model_name}"
                 )
             except Exception as e:

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.bll.extraction_service import ExtractAndSaveResult
+from src.bll.posting_review_service import ReviewUpdateResult
 from src.domain.job_posting_entity import JobPostingEntity
 from src.domain.work_type import WorkType
 from src.web import create_app
@@ -22,24 +23,6 @@ def app():
 @pytest.fixture
 def client(app):
     return app.test_client()
-
-
-def _patch_repo(monkeypatch, *, get_entity=None, update_entity=None):
-    repo = MagicMock()
-    repo.get_by_id.return_value = get_entity
-    if update_entity is not None:
-        repo.update_review_fields.return_value = update_entity
-
-    class FakeScope:
-        def __enter__(self):
-            return MagicMock()
-
-        def __exit__(self, *args):
-            return False
-
-    monkeypatch.setattr(postings_routes, "session_scope", lambda: FakeScope())
-    monkeypatch.setattr(postings_routes, "JobPostingRepository", lambda session: repo)
-    return repo
 
 
 def test_get_new_posting_form(client):
@@ -89,7 +72,10 @@ def test_post_paste_success_redirects_to_edit(client, monkeypatch):
         "ingest_posting_text",
         lambda text: ExtractAndSaveResult(entity=entity, created=True),
     )
-    _patch_repo(monkeypatch, get_entity=entity)
+    monkeypatch.setattr(
+        "src.bll.posting_review_service.get_posting_for_review",
+        lambda posting_id: entity,
+    )
 
     response = client.post(
         "/",
@@ -117,7 +103,10 @@ def test_post_duplicate_info_flash(client, monkeypatch):
         "ingest_posting_text",
         lambda text: ExtractAndSaveResult(entity=entity, created=False),
     )
-    _patch_repo(monkeypatch, get_entity=entity)
+    monkeypatch.setattr(
+        "src.bll.posting_review_service.get_posting_for_review",
+        lambda posting_id: entity,
+    )
 
     response = client.post(
         "/",
@@ -145,7 +134,10 @@ def test_post_file_upload_used_over_paste(client, monkeypatch):
         return ExtractAndSaveResult(entity=entity, created=True)
 
     monkeypatch.setattr(postings_routes, "ingest_posting_text", fake_ingest)
-    _patch_repo(monkeypatch, get_entity=entity)
+    monkeypatch.setattr(
+        "src.bll.posting_review_service.get_posting_for_review",
+        lambda posting_id: entity,
+    )
 
     data = {
         "posting_text": "this paste should be ignored",
@@ -157,16 +149,7 @@ def test_post_file_upload_used_over_paste(client, monkeypatch):
     assert b"Saved posting" in response.data
 
 
-def test_update_posting_saves_and_updates_glossary(client, monkeypatch):
-    entity = JobPostingEntity(
-        id=5,
-        role_title="Analüütik",
-        role_title_en="Analyst",
-        company_name="Acme",
-        work_type=WorkType.onsite,
-        skills=["Python"],
-        skills_en=["Python"],
-    )
+def test_update_posting_saves_via_review_service(client, monkeypatch):
     updated = JobPostingEntity(
         id=5,
         role_title="Vanemanalüütik",
@@ -180,13 +163,20 @@ def test_update_posting_saves_and_updates_glossary(client, monkeypatch):
         country="Estonia",
         city="Tallinn",
     )
-    repo = _patch_repo(monkeypatch, get_entity=entity, update_entity=updated)
+    captured: dict = {}
 
-    captured_pairs: list = []
+    def fake_update(posting_id, **kwargs):
+        captured["posting_id"] = posting_id
+        captured["kwargs"] = kwargs
+        return ReviewUpdateResult(posting=updated, glossary_pairs_added=1)
+
     monkeypatch.setattr(
-        postings_routes,
-        "add_entries",
-        lambda pairs: captured_pairs.extend(pairs),
+        "src.bll.posting_review_service.update_posting_review",
+        fake_update,
+    )
+    monkeypatch.setattr(
+        "src.bll.posting_review_service.get_posting_for_review",
+        lambda posting_id: updated,
     )
 
     response = client.post(
@@ -208,8 +198,7 @@ def test_update_posting_saves_and_updates_glossary(client, monkeypatch):
     )
     assert response.status_code == 200
     assert b"Posting updated" in response.data
-    repo.update_review_fields.assert_called_once()
-    kwargs = repo.update_review_fields.call_args.kwargs
-    assert kwargs["skills"] == ["Python"]
-    assert kwargs["skills_en"] == ["Senior analysis"]
-    assert ("Vanemanalüütik", "Senior Analyst") in captured_pairs
+    assert b"Glossary saved" in response.data
+    assert captured["posting_id"] == 5
+    assert captured["kwargs"]["role_title"] == "Vanemanalüütik"
+    assert captured["kwargs"]["skills_en"] == ["Senior analysis"]

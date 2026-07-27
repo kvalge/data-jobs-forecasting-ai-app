@@ -4,11 +4,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.utils import secure_filename
 
-from src.bll.glossary import add_entries, pairs_from_posting
-from src.bll.job_posting_validator import validate_review_fields
 from src.bll.posting_ingest import ingest_posting_text
-from src.dal.job_posting_repository import JobPostingRepository
-from src.dal.session import session_scope
 from src.domain.work_type import WorkType
 from src.llm.error_messages import (
     format_db_error_for_user,
@@ -102,9 +98,9 @@ def create_posting():
 
 @postings_bp.get("/postings/<int:posting_id>/edit")
 def edit_posting(posting_id: int):
-    with session_scope() as session:
-        repository = JobPostingRepository(session)
-        posting = repository.get_by_id(posting_id)
+    from src.bll.posting_review_service import get_posting_for_review
+
+    posting = get_posting_for_review(posting_id)
 
     if posting is None:
         flash(f"Job posting not found (id={posting_id})", "error")
@@ -119,6 +115,8 @@ def edit_posting(posting_id: int):
 
 @postings_bp.post("/postings/<int:posting_id>/edit")
 def update_posting(posting_id: int):
+    from src.bll.posting_review_service import update_posting_review
+
     try:
         work_type_raw = (request.form.get("work_type") or "unknown").strip()
         try:
@@ -126,62 +124,26 @@ def update_posting(posting_id: int):
         except ValueError as e:
             raise ValueError("Invalid work_type") from e
 
-        skills_en = _parse_skills_en()
-        role_title = (request.form.get("role_title") or "").strip()
-        role_title_en = _optional_str("role_title_en")
-
-        with session_scope() as session:
-            repository = JobPostingRepository(session)
-            existing = repository.get_by_id(posting_id)
-            if existing is None:
-                raise ValueError(f"Job posting not found: id={posting_id}")
-
-            original_skills = list(existing.skills or [])
-            validated = validate_review_fields(
-                company_name=_optional_str("company_name"),
-                role_title=role_title,
-                role_title_en=role_title_en,
-                salary_min=_optional_float("salary_min"),
-                salary_max=_optional_float("salary_max"),
-                work_type=work_type,
-                has_nondiscrimination_disclaimer=(
-                    request.form.get("has_nondiscrimination_disclaimer") == "on"
-                ),
-                location=_optional_str("location"),
-                country=_optional_str("country"),
-                city=_optional_str("city"),
-                skills=original_skills,
-                skills_en=skills_en,
-                salary_currency=existing.salary_currency,
-            )
-
-            updated = repository.update_review_fields(
-                posting_id,
-                company_name=validated.company_name,
-                role_title=validated.role_title,
-                role_title_en=validated.role_title_en,
-                salary_min=validated.salary_min,
-                salary_max=validated.salary_max,
-                work_type=validated.work_type,
-                has_nondiscrimination_disclaimer=validated.has_nondiscrimination_disclaimer,
-                location=validated.location,
-                country=validated.country,
-                city=validated.city,
-                skills=validated.skills,
-                skills_en=validated.skills_en,
-            )
-
-        added = add_entries(
-            pairs_from_posting(
-                validated.role_title,
-                validated.role_title_en,
-                validated.skills,
-                validated.skills_en,
-            )
+        result = update_posting_review(
+            posting_id,
+            company_name=_optional_str("company_name"),
+            role_title=(request.form.get("role_title") or "").strip(),
+            role_title_en=_optional_str("role_title_en"),
+            salary_min=_optional_float("salary_min"),
+            salary_max=_optional_float("salary_max"),
+            work_type=work_type,
+            has_nondiscrimination_disclaimer=(
+                request.form.get("has_nondiscrimination_disclaimer") == "on"
+            ),
+            location=_optional_str("location"),
+            country=_optional_str("country"),
+            city=_optional_str("city"),
+            skills_en=_parse_skills_en(),
         )
-        if added:
+        if result.glossary_pairs_added:
             flash(
-                f"Posting updated. Glossary saved {added} corrected translation(s).",
+                f"Posting updated. Glossary saved {result.glossary_pairs_added} "
+                f"corrected translation(s).",
                 "success",
             )
         else:

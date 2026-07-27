@@ -1,4 +1,8 @@
-"""Future PostgreSQL-backed series source (same schemas as FakeFileSource)."""
+"""Future PostgreSQL-backed series source (not wired; fail-closed in config).
+
+QUARANTINED: Do not import this from ``get_data_source`` until SQL aggregates
+exist. ``PREDICTION_DATA_SOURCE=database`` is rejected at startup.
+"""
 
 from __future__ import annotations
 
@@ -10,10 +14,16 @@ from src.prediction.data_source import slice_last_periods
 class DatabaseSource:
     """Placeholder for aggregating live job_postings / skills into forecast series.
 
-    Switch with PREDICTION_DATA_SOURCE=database once implemented.
+    Not implemented. Kept for documentation of the intended future shape only.
     """
 
     name = "database"
+
+    def __init__(self) -> None:
+        raise NotImplementedError(
+            "DatabaseSource is quarantined / not implemented. "
+            "Set PREDICTION_DATA_SOURCE=fake (default)."
+        )
 
     def load_manifest(self) -> dict:
         return {
@@ -23,10 +33,7 @@ class DatabaseSource:
         }
 
     def load_monthly_roles(self) -> pd.DataFrame:
-        raise NotImplementedError(
-            "DatabaseSource is not implemented yet. "
-            "Set PREDICTION_DATA_SOURCE=fake or implement SQL aggregates here."
-        )
+        raise NotImplementedError("DatabaseSource is not implemented yet.")
 
     def load_weekly_roles(self) -> pd.DataFrame:
         raise NotImplementedError("DatabaseSource weekly roles not implemented yet.")

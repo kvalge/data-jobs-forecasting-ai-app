@@ -76,7 +76,9 @@ tests/                      # pytest suite
 | `glossary.py` | Lookup + save user-corrected original→English pairs (skip en→en) |
 | `analysis_service.py` | Thin façade: clamp top-N, delegate aggregates to `AnalysisRepository` |
 | `chart_export.py` | matplotlib PNGs under `docs/analysis/` |
-| `prediction_service.py` | Orchestrates baseline + forecast models; timings; persist run |
+| `prediction_service.py` | Thin orchestrator for baseline + forecasts; timings; persist run |
+| `prediction_shortlist.py` / `prediction_*_runner.py` / `prediction_types.py` | Ranking, baseline/forecast loops, TargetType/RunStatus |
+| `posting_review_service.py` / `analysis_facade.py` / `prediction_history.py` | Web BLL façades |
 | `prediction_export.py` | Writes `docs/prediction/model_results.md` |
 
 ### DTO (`src/dto/`)
@@ -113,7 +115,7 @@ tests/                      # pytest suite
 |------|------|
 | `data_source.py` | Protocol + `get_data_source()` factory |
 | `fake_file_source.py` | Loads monthly/weekly aggregates from `data/fake/` |
-| `database_source.py` | Future DB aggregates (not implemented yet) |
+| `database_source.py` | Quarantined stub (constructor raises; config rejects `database`) |
 | `baseline/` | MA, growth, market share, linear trend |
 | `models/` | Prophet, SARIMA, ARIMA, RF, HGB adapters |
 
@@ -122,6 +124,7 @@ tests/                      # pytest suite
 | File | Role |
 |------|------|
 | `base_llm_client.py` | Abstract `extract(posting_text) -> dict` |
+| `prompts.py` / `response_parse.py` | Shared extraction prompt + JSON/fence parsing |
 | `openrouter_client.py` | Extraction via OpenRouter model chain only (narrow recoverable errors) |
 | `fallback_client.py` | `OpenRouterWithOllamaFallback` — compose Ollama after OpenRouter exhaustion |
 | `ollama_client.py` | Local Ollama `/api/chat` (`format: json`, `think: false`, no redirects) |

@@ -1,7 +1,7 @@
 # Plan: Architecture and maintainability refactors
 
 **Created:** 2026-07-27  
-**Status:** In progress (Steps 1–2 done)  
+**Status:** Complete (all steps 0–12 done, 2026-07-27)  
 **Scope:** Improve layer honesty, session/LLM boundaries, prediction orchestration size/cost, and a few maintainability hotspots found in a full-project architecture review after the security/LLM hardening plan completed. Prefer small, testable steps that keep CLI/web behavior the same unless a step explicitly changes defaults.  
 **Out of scope:** Full multi-user auth, implementing live `DatabaseSource` end-to-end (quarantine/clarify only), prediction/analysis UI redesign, changing OpenRouter/Ollama provider stack, micro-optimizations unrelated to structure, Docker/K8s packaging.
 
@@ -16,16 +16,16 @@
 | 0 | Create this plan file | Done (2026-07-27) |
 | 1 | Close DB session before LLM; reopen for save | Done (2026-07-27) |
 | 2 | Move analysis SQL into DAL (query repo) | Done (2026-07-27) |
-| 3 | Split `prediction_service` orchestration | Pending |
-| 4 | Safer prediction defaults / cost staging | Pending |
-| 5 | Shared LLM prompt + response parsing | Pending |
-| 6 | Glossary cache + skill resolution batching | Pending |
-| 7 | Thin BLL facades for edit / analysis / forecast history | Pending |
-| 8 | Forecast `target_type` / status constants or enums | Pending |
-| 9 | Quarantine unfinished `DatabaseSource` surface | Pending |
-| 10 | Align repo transaction rules + slim `BaseRepository` | Pending |
-| 11 | Config load/validate cleanup (parse-once) | Pending |
-| 12 | Docs/tests layout polish (optional mirrors, DTOs) | Pending |
+| 3 | Split `prediction_service` orchestration | Done (2026-07-27) |
+| 4 | Safer prediction defaults / cost staging | Done (2026-07-27) |
+| 5 | Shared LLM prompt + response parsing | Done (2026-07-27) |
+| 6 | Glossary cache + skill resolution batching | Done (2026-07-27) |
+| 7 | Thin BLL facades for edit / analysis / forecast history | Done (2026-07-27) |
+| 8 | Forecast `target_type` / status constants or enums | Done (2026-07-27) |
+| 9 | Quarantine unfinished `DatabaseSource` surface | Done (2026-07-27) |
+| 10 | Align repo transaction rules + slim `BaseRepository` | Done (2026-07-27) |
+| 11 | Config load/validate cleanup (parse-once) | Done (2026-07-27) |
+| 12 | Docs/tests layout polish (optional mirrors, DTOs) | Done (2026-07-27) |
 
 After each completed step: update this table + notes below, propose a git commit message in chat, then ask permission before the next step.
 
@@ -165,3 +165,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-27:** Plan created from architecture/code-organization review (layering, session/LLM span, analysis ORM in BLL, prediction god module, LLM parse coupling, glossary/skills hot paths, unfinished DatabaseSource, config/repo ABC smells). No application code changes. Awaiting permission to begin Step 1.
 - **2026-07-27 (Step 1):** Ingest uses short lookup session → LLM with no open session → short save session; `ExtractionService` split into `find_by_content_hash` / `extract_entity` / `save_extracted`; tests assert session exit before LLM.
 - **2026-07-27 (Step 2):** Moved analysis SQL into `AnalysisRepository`; `analysis_service` clamps top-N and delegates (stable result shapes for web/charts).
+- **2026-07-27 (Steps 3–12):** Split prediction orchestration; default models `baseline/prophet/arima`; shared LLM prompts/parse; glossary cache + skill prefetch; web BLL façades; `TargetType`/`RunStatus`; quarantined `DatabaseSource`; savepoint on posting IntegrityError + slim `BaseRepository`; soft int env parse; salary one-query + docs/tests updates.

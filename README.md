@@ -140,7 +140,7 @@ python -m src.main
 ```
 
 - **Add job posting:** enter a path to a UTF-8 `.txt` file. Re-submitting the same text skips extraction (content hash).
-- **Run prediction:** choose training window (12/24/36 months), horizons (3/6/12), and models (baseline, prophet, sarima, arima, rf, hgb). Results are saved to `forecast_runs` / `forecast_results`.
+- **Run prediction:** choose training window (12/24/36 months), horizons (3/6/12), and models. Defaults are **baseline + prophet + arima** (faster demos). Opt in to the full set (also sarima, rf, hgb) via checkboxes or CLI `all`. Results are saved to `forecast_runs` / `forecast_results`.
 
 ## Fake data for prediction
 
@@ -166,7 +166,7 @@ Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`). Th
 - After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and English skills.
 - Saving edits updates the database. If you correct a non-English → English translation on the review page, that pair is saved to `glossary/original_en.tsv` (English→English pairs are skipped; glossary is not filled on initial extract).
 - Open **Analysis** (`/analysis`) to query top companies, top English roles, salary min/avg/max (nulls excluded), and top English skills. Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).
-- Open **Prediction** (`/prediction`) to run baseline trend analysis and classical/ML forecasts for popular roles, skills, and average salary per role. Choose training window, horizons, and one/some/all models; outcomes are stored in PostgreSQL. The “Top roles / Top skills” lines on the results page are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
+- Open **Prediction** (`/prediction`) to run baseline trend analysis and classical/ML forecasts for popular roles, skills, and average salary per role. Default model selection is `baseline`, `prophet`, and `arima`; choose more (or all) explicitly. Outcomes are stored in PostgreSQL. The “Top roles / Top skills” lines on the results page are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
 - Success, duplicate, and error messages appear as flash banners.
 - The CLI remains fully functional alongside the web UI.
 

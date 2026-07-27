@@ -56,6 +56,16 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         )
 
         self.session.add(orm_obj)
+        skill_cache = self.skill_repository.get_by_normalized_names(
+            [
+                (
+                    entity.skills_en[index]
+                    if index < len(entity.skills_en)
+                    else skill_name
+                )
+                for index, skill_name in enumerate(entity.skills)
+            ]
+        )
         for index, skill_name in enumerate(entity.skills):
             skill_en = (
                 entity.skills_en[index]
@@ -65,16 +75,15 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             skill_orm = self.skill_repository.get_or_create(
                 skill_name,
                 display_name_en=skill_en,
+                cache=skill_cache,
             )
             orm_obj.skills.append(skill_orm)
 
         try:
-            self.session.flush()
+            with self.session.begin_nested():
+                self.session.flush()
         except IntegrityError:
-            # Rare unique content_hash race. Roll back this unit of work's failed
-            # flush state, then return the winner if present. Callers that need
-            # multi-statement atomicity should rely on session_scope + pre-checks.
-            self.session.rollback()
+            # Rare unique content_hash race — savepoint keeps outer session usable.
             if entity.content_hash:
                 existing = self.get_by_content_hash(entity.content_hash)
                 if existing is not None:
@@ -146,6 +155,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         orm_obj.city = city.strip() if city and city.strip() else None
 
         orm_obj.skills.clear()
+        skill_cache = self.skill_repository.get_by_normalized_names(list(skills_en))
         for original, english in zip(skills, skills_en):
             original_label = (original or "").strip() or (english or "").strip()
             english_label = (english or "").strip() or original_label
@@ -154,6 +164,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             skill_orm = self.skill_repository.get_or_create(
                 original_label,
                 display_name_en=english_label,
+                cache=skill_cache,
             )
             orm_obj.skills.append(skill_orm)
 

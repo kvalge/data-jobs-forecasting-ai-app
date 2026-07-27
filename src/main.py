@@ -10,7 +10,7 @@ from src.llm.error_messages import (
     format_llm_failure_for_user,
     format_validation_error_for_user,
 )
-from src.prediction.models.registry import ALL_RUNNABLE
+from src.prediction.models.registry import ALL_RUNNABLE, DEFAULT_MODELS
 
 
 def add_posting_flow() -> None:
@@ -67,9 +67,14 @@ def prediction_flow() -> None:
     else:
         horizons = list(ALLOWED_HORIZONS)
 
-    print(f"Models: {', '.join(ALL_RUNNABLE)}")
-    models_raw = input("Models comma-separated, or 'all' (default all): ").strip().lower()
-    if not models_raw or models_raw == "all":
+    print(f"Default models: {', '.join(DEFAULT_MODELS)}")
+    print(f"All models: {', '.join(ALL_RUNNABLE)}")
+    models_raw = input(
+        "Models comma-separated, 'all', or Enter for default: "
+    ).strip().lower()
+    if not models_raw:
+        models = list(DEFAULT_MODELS)
+    elif models_raw == "all":
         models = list(ALL_RUNNABLE)
     else:
         models = [m.strip() for m in models_raw.split(",") if m.strip()]

@@ -19,6 +19,9 @@ GLOSSARY_PATH = _PROJECT_ROOT / "glossary" / "original_en.tsv"
 MAX_GLOSSARY_FIELD_LEN = 200
 _FORBIDDEN_CHARS = re.compile(r"[\t\n\r]")
 
+# path -> (mtime_ns or None if missing, mapping)
+_glossary_cache: dict[str, tuple[int | None, dict[str, str]]] = {}
+
 _DEFAULT_HEADER = [
     "# original_en.tsv — glossary of original (non-English) labels -> English",
     "# Format: original<TAB>english  (one pair per line; # starts a comment)",
@@ -63,26 +66,45 @@ def _safe_pair(original: str, english: str) -> tuple[str, str] | None:
         return None
 
 
+def clear_glossary_cache(path: Path | None = None) -> None:
+    """Drop cached glossary mapping(s). Used by tests and after writes."""
+    if path is None:
+        _glossary_cache.clear()
+        return
+    _glossary_cache.pop(str((path or GLOSSARY_PATH).resolve()), None)
+
+
 def load_glossary(path: Path | None = None) -> dict[str, str]:
     """Load glossary as lowercase-original -> english (preserves english casing)."""
     glossary_file = path or GLOSSARY_PATH
-    mapping: dict[str, str] = {}
-    if not glossary_file.is_file():
-        return mapping
+    cache_key = str(glossary_file.resolve())
+    mtime: int | None
+    try:
+        mtime = glossary_file.stat().st_mtime_ns if glossary_file.is_file() else None
+    except OSError:
+        mtime = None
 
-    for line in glossary_file.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if "\t" not in stripped:
-            continue
-        original, english = stripped.split("\t", 1)
-        pair = _safe_pair(original, english)
-        if pair is None:
-            continue
-        orig, eng = pair
-        if not is_identity_pair(orig, eng):
-            mapping[_normalize_key(orig)] = eng
+    cached = _glossary_cache.get(cache_key)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+
+    mapping: dict[str, str] = {}
+    if glossary_file.is_file():
+        for line in glossary_file.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if "\t" not in stripped:
+                continue
+            original, english = stripped.split("\t", 1)
+            pair = _safe_pair(original, english)
+            if pair is None:
+                continue
+            orig, eng = pair
+            if not is_identity_pair(orig, eng):
+                mapping[_normalize_key(orig)] = eng
+
+    _glossary_cache[cache_key] = (mtime, mapping)
     return mapping
 
 
@@ -195,6 +217,7 @@ def add_entries(pairs: list[tuple[str, str]], path: Path | None = None) -> int:
         glossary_file,
         header + ("\n" + body if body else "") + "\n",
     )
+    clear_glossary_cache(glossary_file)
     return changed
 
 

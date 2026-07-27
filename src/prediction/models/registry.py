@@ -7,6 +7,8 @@ from src.prediction.models.ml import HistGradientBoostingForecaster, RandomFores
 
 MODEL_KEYS = ("prophet", "sarima", "arima", "rf", "hgb")
 ALL_RUNNABLE = ("baseline",) + MODEL_KEYS
+# Cheaper demo default — opt in to ALL_RUNNABLE via UI checkboxes or CLI "all".
+DEFAULT_MODELS = ("baseline", "prophet", "arima")
 
 
 def get_forecaster(key: str):

@@ -5,6 +5,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _env_bool(name: str, default: str = "false") -> bool:
+    return (os.getenv(name) or default).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _env_int_soft(name: str, default: str) -> int:
+    """Parse int at import time; invalid values fall back to default (strict check in validate_config)."""
+    raw = (os.getenv(name) or default).strip() or default
+    try:
+        return int(raw)
+    except ValueError:
+        return int(default)
+
+
 # Always required regardless of LLM provider mode.
 ALWAYS_REQUIRED_ENV_VARS = ("DATABASE_URL",)
 
@@ -34,29 +48,20 @@ LLM_PROVIDER_MODE: str = (
     or LLM_PROVIDER_MODE_OPENROUTER_OLLAMA
 )
 # Local Ollama fallback after all OpenRouter models fail (openrouter_ollama mode).
-OLLAMA_FALLBACK_ENABLED: bool = (
-    (os.getenv("OLLAMA_FALLBACK_ENABLED") or "true").strip().lower()
-    in ("1", "true", "yes", "on")
-)
+OLLAMA_FALLBACK_ENABLED: bool = _env_bool("OLLAMA_FALLBACK_ENABLED", "true")
 OLLAMA_BASE_URL: str = (os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").strip()
 OLLAMA_MODEL: str = (os.getenv("OLLAMA_MODEL") or "qwen3.5:latest").strip()
-OLLAMA_TIMEOUT_SECONDS: int = int((os.getenv("OLLAMA_TIMEOUT_SECONDS") or "180").strip() or "180")
-OLLAMA_ALLOW_REMOTE: bool = (
-    (os.getenv("OLLAMA_ALLOW_REMOTE") or "false").strip().lower()
-    in ("1", "true", "yes", "on")
-)
+OLLAMA_TIMEOUT_SECONDS: int = _env_int_soft("OLLAMA_TIMEOUT_SECONDS", "180")
+OLLAMA_ALLOW_REMOTE: bool = _env_bool("OLLAMA_ALLOW_REMOTE", "false")
 # Max characters of posting text sent to any LLM (CLI + web). Default 100_000.
-MAX_POSTING_CHARS: int = int((os.getenv("MAX_POSTING_CHARS") or "100000").strip() or "100000")
+MAX_POSTING_CHARS: int = _env_int_soft("MAX_POSTING_CHARS", "100000")
 # Privacy-safe LLM request metadata (NDJSON). Default on.
-LLM_METADATA_LOG_ENABLED: bool = (
-    (os.getenv("LLM_METADATA_LOG_ENABLED") or "true").strip().lower()
-    in ("1", "true", "yes", "on")
-)
+LLM_METADATA_LOG_ENABLED: bool = _env_bool("LLM_METADATA_LOG_ENABLED", "true")
 LLM_METADATA_LOG_PATH: str = (
     (os.getenv("LLM_METADATA_LOG_PATH") or "logs/llm_requests.ndjson").strip()
     or "logs/llm_requests.ndjson"
 )
-# Prediction series source: "fake" (data/fake CSVs) or "database" (future).
+# Prediction series source: "fake" (data/fake CSVs) or "database" (future / quarantined).
 PREDICTION_DATA_SOURCE: str = (os.getenv("PREDICTION_DATA_SOURCE") or "fake").strip() or "fake"
 
 

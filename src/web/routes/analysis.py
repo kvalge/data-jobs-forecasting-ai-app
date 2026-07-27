@@ -5,8 +5,8 @@ from __future__ import annotations
 from flask import Blueprint, flash, render_template, request
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.bll import analysis_service, chart_export
-from src.dal.session import session_scope
+from src.bll import analysis_service
+from src.bll.analysis_facade import run_analysis
 
 analysis_bp = Blueprint("analysis", __name__)
 
@@ -41,41 +41,7 @@ def analysis_page():
             flash("Select at least one analysis option.", "error")
         else:
             try:
-                with session_scope() as session:
-                    companies = (
-                        analysis_service.top_companies(session, n)
-                        if "companies" in selected
-                        else None
-                    )
-                    roles = (
-                        analysis_service.top_roles(session, n) if "roles" in selected else None
-                    )
-                    salary = (
-                        analysis_service.salary_summary(session)
-                        if "salary" in selected
-                        else None
-                    )
-                    skills = (
-                        analysis_service.top_skills(session, n)
-                        if "skills" in selected
-                        else None
-                    )
-
-                if companies is not None:
-                    results["companies"] = companies
-                if roles is not None:
-                    results["roles"] = roles
-                if salary is not None:
-                    results["salary"] = salary
-                if skills is not None:
-                    results["skills"] = skills
-
-                written = chart_export.export_selected(
-                    companies=companies,
-                    roles=roles,
-                    salary=salary,
-                    skills=skills,
-                )
+                results, written = run_analysis(selected, n)
                 flash(
                     f"Analysis complete. Updated {len(written)} chart file(s) under docs/analysis/.",
                     "success",

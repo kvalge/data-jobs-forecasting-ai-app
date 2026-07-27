@@ -7,6 +7,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from src.bll.prediction_types import TargetType
+
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RESULTS_PATH = _PROJECT_ROOT / "docs" / "prediction" / "model_results.md"
 
@@ -14,7 +16,7 @@ DEFAULT_RESULTS_PATH = _PROJECT_ROOT / "docs" / "prediction" / "model_results.md
 def _format_value(target_type: str, value: float | None) -> str:
     if value is None:
         return "—"
-    if target_type in ("salary_role",) or "salary" in (target_type or ""):
+    if target_type == TargetType.SALARY_ROLE or "salary" in (target_type or ""):
         return str(int(round(float(value))))
     # Counts / baseline latest: whole numbers when close to int
     number = float(value)
