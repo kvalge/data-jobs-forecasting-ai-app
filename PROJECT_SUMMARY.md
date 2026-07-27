@@ -5,7 +5,7 @@
 A **portfolio / WIP Python app** that:
 
 1. Accepts raw job posting text (CLI `.txt` path, or web paste / `.txt` upload)
-2. Uses an **LLM via OpenRouter** to extract structured fields
+2. Uses an **LLM via OpenRouter** (model chain) to extract structured fields, with **local Ollama** as last resort when OpenRouter fails (e.g. free-tier limits)
 3. Validates with **Pydantic** plus domain rules
 4. Resolves English role titles and skills from the **same** extraction response (glossary overrides when present)
 5. Saves postings and skills into **PostgreSQL** (SQLAlchemy + Alembic)
@@ -13,19 +13,19 @@ A **portfolio / WIP Python app** that:
 7. Runs **descriptive analysis** (top companies/roles/skills, salary stats) and PNG chart export
 8. Runs **time series prediction** (baseline + Prophet/SARIMA/ARIMA/RF/HGB) on fake series today, with a switch for future DB aggregates
 
-**Stack:** Python, PostgreSQL, SQLAlchemy, Alembic, Flask + Jinja2, OpenRouter API, Pydantic, pandas/numpy/scikit-learn/statsmodels/Prophet, matplotlib, `python-dotenv`, `requests`, pytest
+**Stack:** Python, PostgreSQL, SQLAlchemy, Alembic, Flask + Jinja2, OpenRouter API, optional local Ollama, Pydantic, pandas/numpy/scikit-learn/statsmodels/Prophet, matplotlib, `python-dotenv`, `requests`, pytest
 
 **Architecture:** layered CLI/Web → BLL → Domain/DTO → DAL / LLM / prediction
 
 ```
 src/
 ├── main.py                 # CLI entry (python -m src.main)
-├── config.py               # env + validate_config()
+├── config.py               # env + validate_config() + llm_model_chain()
 ├── bll/                    # business logic / orchestration
 ├── dal/                    # SQLAlchemy models, session, repositories
 ├── domain/                 # pure entities + hash helper
 ├── dto/                    # LLM extraction schema
-├── llm/                    # OpenRouter extract/translate + error messages
+├── llm/                    # OpenRouter + Ollama extract, error messages
 ├── prediction/             # data sources, baseline, forecast model adapters
 └── web/                    # Flask UI (python -m src.web)
 alembic/                    # migrations
@@ -46,7 +46,7 @@ tests/                      # pytest suite
 |---------------|------|
 | `README.md` | Setup, CLI/web run, analysis charts, prediction notes, migrations |
 | `requirements.txt` | Core stack + Flask, matplotlib, pandas, sklearn, statsmodels, prophet |
-| `.env.example` | API/DB/`MODEL`+fallbacks/`SECRET_KEY`/`PREDICTION_DATA_SOURCE` |
+| `.env.example` | API/DB/`MODEL`+fallbacks/Ollama/`SECRET_KEY`/`PREDICTION_DATA_SOURCE` |
 | `.gitignore` | `venv/`, `.env`, caches, `data/`, pytest artifacts |
 | `PROJECT_SUMMARY.md` | This document |
 | `pytest.ini` | `pythonpath = .`, `testpaths = tests` |
@@ -61,7 +61,7 @@ tests/                      # pytest suite
 | File | Role |
 |------|------|
 | `src/main.py` | CLI menu; posting ingest + prediction prompts |
-| `src/config.py` | Loads `.env`; `validate_config()`; `PREDICTION_DATA_SOURCE` |
+| `src/config.py` | Loads `.env`; `validate_config()`; `llm_model_chain()`; Ollama + `PREDICTION_DATA_SOURCE` |
 | `src/web/__main__.py` | Runs Flask app (`python -m src.web`) |
 | `src/web/__init__.py` | `create_app()` — blueprints for postings, analysis, prediction |
 
@@ -120,10 +120,11 @@ tests/                      # pytest suite
 | File | Role |
 |------|------|
 | `base_llm_client.py` | Abstract `extract(posting_text) -> dict` |
-| `openrouter_client.py` | Extraction chat completions; primary then fallback model |
-| `translation.py` | Glossary-first English translation via OpenRouter |
-| `error_messages.py` | User-facing messages for 429 / API key / timeout / connection |
-| `llm_client_factory.py` | Returns `OpenRouterClient` |
+| `openrouter_client.py` | Extraction via OpenRouter model chain; on total failure, optional Ollama |
+| `ollama_client.py` | Local Ollama `/api/chat` fallback (`format: json`, `think: false`) |
+| `translation.py` | Leftover OpenRouter label helper (not used on the ingest path) |
+| `error_messages.py` | User-facing messages for 429 / API key / timeout / Ollama / connection |
+| `llm_client_factory.py` | Returns `OpenRouterClient` (Ollama is invoked from inside extract) |
 
 ### Web (`src/web/`)
 
@@ -147,7 +148,7 @@ tests/                      # pytest suite
 | `alembic/versions/20260726_0002_…` | `country`, `city` |
 | `alembic/versions/20260726_0003_…` | `role_title_en`, `display_name_en` |
 | `alembic/versions/20260726_0004_…` | `forecast_runs`, `forecast_results` |
-| `tests/` | Config, ingest, analysis, prediction, Flask routes, exports |
+| `tests/` | Config, ingest, OpenRouter/Ollama fallback (mocked), analysis, prediction, Flask routes, exports |
 
 ---
 
@@ -160,7 +161,10 @@ flowchart TD
     C --> D[content_hash lookup]
     D -->|exists| E[Return existing entity]
     D -->|new| F[OpenRouterClient.extract]
-    F --> G[Pydantic DTO + domain validator]
+    F --> F1{OpenRouter chain OK?}
+    F1 -->|yes| G[Pydantic DTO + domain validator]
+    F1 -->|no, Ollama enabled| F2[OllamaClient.extract]
+    F2 --> G
     G --> H[English from extract JSON + glossary]
     H --> I[JobPostingRepository.save]
     I --> J[Skill get_or_create by English name]
@@ -175,7 +179,7 @@ flowchart TD
 1. **Startup** — validate env; Alembic migrates to `head`.
 2. **Input** — CLI: file path. Web: paste and/or `.txt` upload (file wins if present).
 3. **Dedup** — SHA-256 of stripped text; if known, skip LLM and return existing row.
-4. **LLM extraction** — fixed JSON schema; primary model then fallback.
+4. **LLM extraction** — fixed JSON schema; one successful call: `MODEL` → `FALLBACK_MODEL` → optional `FALLBACK_MODEL2`/`3` → then local Ollama (`qwen3.5:latest` by default, thinking off) if enabled.
 5. **Validation** — Pydantic schema, then domain rules.
 6. **English labels** — from extract JSON + glossary override (no extra translation API calls)
 7. **Persistence** — posting + skills (unique on lowercase English name) + M2M links
@@ -215,7 +219,7 @@ raw posting text (str)
 | 1 | CLI / web route | Obtain UTF-8 posting text |
 | 2 | `ingest_posting_text` | Open `session_scope`, call extraction service |
 | 3 | `ExtractionService` | Hash lookup; skip LLM if duplicate |
-| 4 | `OpenRouterClient.extract` | Primary then fallback model |
+| 4 | `OpenRouterClient.extract` | OpenRouter model chain; then Ollama if all fail |
 | 5 | DTO + `validate_extraction_dto` | Schema + business rules |
 | 6 | Extract JSON + glossary | English role title and skills (no second LLM round-trip) |
 | 7 | Repository `save` | Insert posting; `get_or_create` skills; commit |
@@ -275,7 +279,8 @@ pytest
 | Dedup by content hash | Done |
 | English titles/skills + glossary | Done |
 | Flask insert + review/edit UI | Done |
-| Clearer AI error messages (429, key, network) | Done |
+| Clearer AI error messages (429, key, Ollama timeout/unreachable, network) | Done |
+| Local Ollama fallback after OpenRouter exhaustion | Done (`OLLAMA_*` env; thinking disabled for qwen3.x) |
 | Alembic migrations + pytest | Done |
 | Descriptive analysis UI + README charts | Done |
 | Forecasting (fake data source + multi-model + persist/export) | Done |

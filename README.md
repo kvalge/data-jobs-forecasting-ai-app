@@ -54,6 +54,7 @@ The planned functionalities have been implemented. Due to the small amount of re
 - Python 3.10+ recommended
 - A running PostgreSQL database you can connect to
 - An OpenRouter API key and model IDs for primary + fallback extraction
+- Optional: [Ollama](https://ollama.com/) with `OLLAMA_MODEL` pulled (default `qwen3.5:latest`) for local fallback when OpenRouter is exhausted
 
 ## Setup
 
@@ -89,11 +90,12 @@ The planned functionalities have been implemented. Due to the small amount of re
    OLLAMA_FALLBACK_ENABLED=true
    OLLAMA_BASE_URL=http://127.0.0.1:11434
    OLLAMA_MODEL=qwen3.5:latest
+   OLLAMA_TIMEOUT_SECONDS=180
    ```
 
    - `OPENROUTER_API_KEY`, `DATABASE_URL`, `MODEL`, and `FALLBACK_MODEL` are required (non-empty).
    - `FALLBACK_MODEL2` and `FALLBACK_MODEL3` are optional; when set, they are tried if earlier OpenRouter models fail or hit rate limits.
-   - After **all** OpenRouter models fail (e.g. free-tier limits), the app tries local **Ollama** (`OLLAMA_MODEL`, default `qwen3.5:latest`). Set `OLLAMA_FALLBACK_ENABLED=false` to disable. Requires Ollama running (`ollama serve`).
+   - After **all** OpenRouter models fail (e.g. free-tier limits), the app tries local **Ollama** (`OLLAMA_MODEL`, default `qwen3.5:latest`) via `/api/chat` with thinking disabled. Set `OLLAMA_FALLBACK_ENABLED=false` to disable. Requires Ollama running (`ollama serve`). `OLLAMA_TIMEOUT_SECONDS` defaults to 180 (raise if cold loads still time out).
    - `SECRET_KEY` is used by the Flask UI for sessions/flash messages. Set a long random value for real use (a dev default is used only if unset).
    - `PREDICTION_DATA_SOURCE` is optional (`fake` default, or `database` when the live aggregator is implemented).
    Example `DATABASE_URL` shape:
@@ -161,7 +163,7 @@ From the project root (venv activated):
 pytest
 ```
 
-Tests cover config validation, domain rules, content-hash dedup (LLM mocked), skill get-or-create, analysis aggregations (in-memory SQLite), prediction baseline/models/orchestration (fake mini datasets; Flask prediction mocked), and Flask insert/analysis routes (ingest/DB mocked). They do not call OpenRouter or require PostgreSQL.
+Tests cover config validation, domain rules, content-hash dedup (LLM mocked), OpenRouter model chain + Ollama fallback (HTTP mocked), skill get-or-create, analysis aggregations (in-memory SQLite), prediction baseline/models/orchestration (fake mini datasets; Flask prediction mocked), and Flask insert/analysis/prediction routes (ingest/DB mocked). They do not call OpenRouter, Ollama, or require PostgreSQL.
 
 ## Database migrations (Alembic)
 
