@@ -1,20 +1,10 @@
-# original_en.tsv — glossary of original labels -> English
+# original_en.tsv — glossary of original (non-English) labels -> English
 # Format: original<TAB>english  (one pair per line; # starts a comment)
-# Used for role titles and skill names; updated when postings are saved/edited in the UI.
+# Only store real translations (skip English→English).
+# Updated when the user revises translations on the posting review page.
 analüütik	Analyst
 andmeanalüütik	Data Analyst
 andmeinsener	Data Engineer
 tarkvaraarendaja	Software Developer
 projektijuht	Project Manager
 Süsteemianalüütik	Systems Analyst
-System Analysis	System Analysis
-Software Development	Software Development
-ITIL Methodology	ITIL Methodology
-Analysis	Analysis
-Communication	Communication
-Teamwork	Teamwork
-Independent Work	Independent Work
-Attention to Detail	Attention to Detail
-Responsibility	Responsibility
-Estonian Language C1	Estonian Language C1
-English Language B2	English Language B2

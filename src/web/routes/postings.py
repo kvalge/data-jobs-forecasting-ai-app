@@ -114,6 +114,12 @@ def update_posting(posting_id: int):
 
         with session_scope() as session:
             repository = JobPostingRepository(session)
+            existing = repository.get_by_id(posting_id)
+            if existing is None:
+                raise ValueError(f"Job posting not found: id={posting_id}")
+            # Keep original skill labels for glossary (UI only edits English skills).
+            original_skills = list(existing.skills or [])
+
             updated = repository.update_review_fields(
                 posting_id,
                 company_name=_optional_str("company_name"),
@@ -129,15 +135,31 @@ def update_posting(posting_id: int):
                 skills_en=skills_en,
             )
 
-        add_entries(
+        # Only real translations (non-English original → English) from user review saves.
+        skill_originals = original_skills
+        if len(skill_originals) != len(skills_en):
+            # Skill list reshaped; only pair by index up to the shorter side.
+            n = min(len(skill_originals), len(skills_en))
+            skill_originals = skill_originals[:n]
+            skills_for_glossary = skills_en[:n]
+        else:
+            skills_for_glossary = skills_en
+
+        added = add_entries(
             pairs_from_posting(
-                updated.role_title,
-                updated.role_title_en,
-                updated.skills,
-                updated.skills_en,
+                role_title,
+                role_title_en,
+                skill_originals,
+                skills_for_glossary,
             )
         )
-        flash("Posting updated and glossary refreshed.", "success")
+        if added:
+            flash(
+                f"Posting updated. Glossary saved {added} corrected translation(s).",
+                "success",
+            )
+        else:
+            flash("Posting updated.", "success")
         return redirect(url_for("postings.edit_posting", posting_id=posting_id))
     except ValueError as e:
         flash(f"Update failed: {e}", "error")

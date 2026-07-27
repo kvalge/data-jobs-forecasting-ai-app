@@ -4,7 +4,6 @@ from datetime import date
 
 from pydantic import ValidationError
 
-from src.bll.glossary import add_entries, pairs_from_posting
 from src.bll.job_posting_validator import validate_extraction_dto
 from src.dal.job_posting_repository import JobPostingRepository
 from src.domain.job_posting_entity import JobPostingEntity
@@ -52,14 +51,8 @@ class ExtractionService:
 
         entity = self._dto_to_entity(dto, posting_text, content_hash)
         saved = self.job_posting_repository.save(entity)
-        add_entries(
-            pairs_from_posting(
-                saved.role_title,
-                saved.role_title_en,
-                saved.skills,
-                saved.skills_en,
-            )
-        )
+        # Glossary is updated only when the user revises translations on the review page
+        # (not on initial extract — avoids English→English noise and locking in bad LLM output).
         return ExtractAndSaveResult(entity=saved, created=True)
 
     def _dto_to_entity(

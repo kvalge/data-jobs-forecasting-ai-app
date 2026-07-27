@@ -51,7 +51,7 @@ tests/                      # pytest suite
 | `PROJECT_SUMMARY.md` | This document |
 | `pytest.ini` | `pythonpath = .`, `testpaths = tests` |
 | `alembic.ini` | Alembic config (URL injected from `.env`) |
-| `glossary/original_en.tsv` | Tab-separated original → English pairs |
+| `glossary/original_en.tsv` | User-corrected original → English pairs (no en→en) |
 | `scripts/generate_fake_job_market.py` | Builds `data/fake/` series for forecasting |
 | `docs/prediction/model_results.md` | Latest prediction export (training source + results) |
 | `.cursor/` | Agent rules and implementation plans |
@@ -70,9 +70,9 @@ tests/                      # pytest suite
 | File | Role |
 |------|------|
 | `posting_ingest.py` | Shared CLI/web entry: session → `ExtractionService.extract_and_save` |
-| `extraction_service.py` | Dedup by hash → LLM extract → validate → translate EN → save → glossary |
+| `extraction_service.py` | Dedup by hash → LLM extract → validate → translate EN → save |
 | `job_posting_validator.py` | Domain rules (non-empty title, salary range, drop blank skills) |
-| `glossary.py` | Load/lookup/append `glossary/original_en.tsv` |
+| `glossary.py` | Lookup + save user-corrected original→English pairs (skip en→en) |
 | `analysis_service.py` | Descriptive aggregates (top companies/roles/skills, salary stats) |
 | `chart_export.py` | matplotlib PNGs under `docs/analysis/` |
 | `prediction_service.py` | Orchestrates baseline + forecast models; timings; persist run |
@@ -164,7 +164,7 @@ flowchart TD
     G --> H[Translate role_title_en + skills_en]
     H --> I[JobPostingRepository.save]
     I --> J[Skill get_or_create by English name]
-    J --> K[Commit + glossary append]
+    J --> K[Commit]
     K --> L{UI?}
     L -->|web| M[Redirect to edit/review page]
     L -->|CLI| N[Print saved / already-saved message]
@@ -179,8 +179,7 @@ flowchart TD
 5. **Validation** — Pydantic schema, then domain rules.
 6. **Translation** — glossary lookup, else LLM; on failure keep original text.
 7. **Persistence** — posting + skills (unique on lowercase English name) + M2M links.
-8. **Glossary** — append new original→English pairs for title and skills.
-9. **Web only** — open review page; user can edit fields and save again (DB + glossary).
+8. **Web only** — open review page; if user corrects translations, save real original→English pairs to glossary (skip English→English).
 
 ### Descriptive analysis flow
 
@@ -218,10 +217,9 @@ raw posting text (str)
 | 3 | `ExtractionService` | Hash lookup; skip LLM if duplicate |
 | 4 | `OpenRouterClient.extract` | Primary then fallback model |
 | 5 | DTO + `validate_extraction_dto` | Schema + business rules |
-| 6 | Translator + glossary | English role title and skills |
+| 6 | Translator + glossary | English role title and skills (glossary first) |
 | 7 | Repository `save` | Insert posting; `get_or_create` skills; commit |
-| 8 | `add_entries` | Update `glossary/original_en.tsv` |
-| 9 | Web edit (optional) | `update_review_fields` + glossary again |
+| 8 | Web edit (optional) | `update_review_fields`; glossary only for corrected non-identity translations |
 
 ### Field mapping (high level)
 
