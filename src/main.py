@@ -5,7 +5,11 @@ from src.bll.posting_ingest import ingest_posting_text
 from src.bll.prediction_service import ALLOWED_HORIZONS, ALLOWED_WINDOWS, run_prediction
 from src.config import validate_config
 from src.dal.session import init_db
-from src.llm.error_messages import format_llm_failure_for_user
+from src.llm.error_messages import (
+    format_db_error_for_user,
+    format_llm_failure_for_user,
+    format_validation_error_for_user,
+)
 from src.prediction.models.registry import ALL_RUNNABLE
 
 
@@ -34,11 +38,11 @@ def add_posting_flow() -> None:
                 f"(id={saved.id}) — skipped LLM extraction."
             )
     except ValueError as e:
-        print(f"\nExtraction failed: {e}")
+        print(f"\n{format_validation_error_for_user(e, context='Extraction')}")
     except RuntimeError as e:
         print(f"\n{format_llm_failure_for_user(e)}")
     except SQLAlchemyError as e:
-        print(f"\nDatabase error: {e}")
+        print(f"\n{format_db_error_for_user(e)}")
 
 
 def prediction_flow() -> None:

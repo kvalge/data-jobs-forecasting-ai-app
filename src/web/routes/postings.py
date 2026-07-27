@@ -9,7 +9,11 @@ from src.bll.posting_ingest import ingest_posting_text
 from src.dal.job_posting_repository import JobPostingRepository
 from src.dal.session import session_scope
 from src.domain.work_type import WorkType
-from src.llm.error_messages import format_llm_failure_for_user
+from src.llm.error_messages import (
+    format_db_error_for_user,
+    format_llm_failure_for_user,
+    format_validation_error_for_user,
+)
 
 postings_bp = Blueprint("postings", __name__)
 
@@ -74,11 +78,11 @@ def create_posting():
             )
         return redirect(url_for("postings.edit_posting", posting_id=saved.id))
     except ValueError as e:
-        flash(f"Extraction failed: {e}", "error")
+        flash(format_validation_error_for_user(e, context="Extraction"), "error")
     except RuntimeError as e:
         flash(format_llm_failure_for_user(e), "error")
     except SQLAlchemyError as e:
-        flash(f"Database error: {e}", "error")
+        flash(format_db_error_for_user(e), "error")
 
     return redirect(url_for("postings.new_posting"))
 
@@ -171,8 +175,8 @@ def update_posting(posting_id: int):
             flash("Posting updated.", "success")
         return redirect(url_for("postings.edit_posting", posting_id=posting_id))
     except ValueError as e:
-        flash(f"Update failed: {e}", "error")
+        flash(format_validation_error_for_user(e, context="Update"), "error")
     except SQLAlchemyError as e:
-        flash(f"Database error: {e}", "error")
+        flash(format_db_error_for_user(e), "error")
 
     return redirect(url_for("postings.edit_posting", posting_id=posting_id))

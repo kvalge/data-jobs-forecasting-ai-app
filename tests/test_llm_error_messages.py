@@ -7,6 +7,7 @@ import requests
 from src.llm.error_messages import (
     describe_http_status,
     describe_request_exception,
+    format_db_error_for_user,
     format_llm_failure_for_user,
 )
 
@@ -38,8 +39,18 @@ def test_format_combined_429_for_ui():
     assert "FALLBACK_MODEL2" in message or "configured models" in message.lower()
 
 
-def test_describe_includes_provider_hint():
+def test_describe_does_not_append_provider_body_to_user_message():
     response = MagicMock()
-    response.json.return_value = {"error": {"message": "Rate limit exceeded: free-models-per-day"}}
+    response.text = '{"error":{"message":"Rate limit exceeded: free-models-per-day secret-token"}}'
+    response.json.return_value = {
+        "error": {"message": "Rate limit exceeded: free-models-per-day secret-token"}
+    }
     message = describe_http_status(429, "model", response)
-    assert "free-models-per-day" in message
+    assert "secret-token" not in message
+    assert "Provider note" not in message
+
+
+def test_format_db_error_hides_details():
+    message = format_db_error_for_user(RuntimeError("DETAIL: password=hunter2"))
+    assert "hunter2" not in message
+    assert "database" in message.lower()

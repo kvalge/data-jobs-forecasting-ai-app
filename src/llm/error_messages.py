@@ -3,63 +3,59 @@
 
 from __future__ import annotations
 
-import json
+import logging
 import re
 
 import requests
 
-
-def _provider_hint(response: requests.Response | None) -> str:
-    """Best-effort short hint from OpenRouter error JSON (no secrets)."""
-    if response is None:
-        return ""
-    try:
-        payload = response.json()
-    except (ValueError, json.JSONDecodeError):
-        return ""
-
-    error = payload.get("error") if isinstance(payload, dict) else None
-    if isinstance(error, dict):
-        message = error.get("message")
-        if isinstance(message, str) and message.strip():
-            # Keep short; avoid dumping huge bodies
-            return message.strip()[:200]
-    if isinstance(error, str) and error.strip():
-        return error.strip()[:200]
-    return ""
+logger = logging.getLogger(__name__)
 
 
-def describe_http_status(status: int | str, model_name: str, response: requests.Response | None = None) -> str:
-    """Human-readable explanation for an OpenRouter HTTP status."""
-    hint = _provider_hint(response)
-    suffix = f" Provider note: {hint}" if hint else ""
+def describe_http_status(
+    status: int | str,
+    model_name: str,
+    response: requests.Response | None = None,
+) -> str:
+    """Human-readable explanation for an HTTP status (no raw provider bodies)."""
+    # Keep response available for server logs only — never append provider JSON to users.
+    if response is not None:
+        try:
+            snippet = (response.text or "")[:200]
+            logger.info(
+                "LLM HTTP %s for model %s; provider body snippet (not shown to user): %s",
+                status,
+                model_name,
+                snippet,
+            )
+        except Exception:
+            pass
 
     try:
         code = int(status)
     except (TypeError, ValueError):
-        return f"Unexpected response from the AI service for model '{model_name}'.{suffix}"
+        return f"Unexpected response from the AI service for model '{model_name}'."
 
     if code == 401 or code == 403:
         return (
             f"AI service rejected the API key (HTTP {code}). "
-            f"Check OPENROUTER_API_KEY in your .env file.{suffix}"
+            "Check OPENROUTER_API_KEY in your .env file."
         )
     if code == 404:
         return (
             f"AI model '{model_name}' was not found (HTTP 404). "
-            f"Check MODEL / FALLBACK_MODEL / FALLBACK_MODEL2 / FALLBACK_MODEL3 in .env.{suffix}"
+            "Check MODEL / FALLBACK_MODEL / FALLBACK_MODEL2 / FALLBACK_MODEL3 in .env."
         )
     if code == 429:
         return (
             f"AI rate limit or free-tier quota reached for model '{model_name}' (HTTP 429). "
-            f"Wait a few minutes and try again, or switch to another model in .env.{suffix}"
+            "Wait a few minutes and try again, or switch to another model in .env."
         )
     if code in (500, 502, 503, 504):
         return (
             f"AI service is temporarily unavailable for model '{model_name}' (HTTP {code}). "
-            f"Try again later.{suffix}"
+            "Try again later."
         )
-    return f"AI request failed for model '{model_name}' (HTTP {code}).{suffix}"
+    return f"AI request failed for model '{model_name}' (HTTP {code})."
 
 
 def describe_request_exception(exc: BaseException, model_name: str) -> str:
@@ -88,44 +84,37 @@ def describe_request_exception(exc: BaseException, model_name: str) -> str:
     if isinstance(exc, requests.HTTPError):
         status = exc.response.status_code if exc.response is not None else "unknown"
         return describe_http_status(status, model_name, exc.response)
-    return f"AI request failed for model '{model_name}': {exc}"
+    logger.info("LLM request error for model %s: %s", model_name, type(exc).__name__)
+    return f"AI request failed for model '{model_name}'."
 
 
 def format_llm_failure_for_user(error: BaseException) -> str:
     """Turn a raw LLM RuntimeError into a clearer flash/CLI message."""
     text = str(error).strip()
+    logger.info("LLM failure for user mapping: %s", text[:500])
     if not text:
         return "The AI service failed. Please try again."
 
-    # Prefer the most actionable signal in combined primary+fallback errors
-    if "ollama" in text.lower() and (
-        "timed out" in text.lower() or "timeout" in text.lower()
-    ):
+    lower = text.lower()
+
+    if "ollama" in lower and ("timed out" in lower or "timeout" in lower):
         return (
             "OpenRouter failed and local Ollama timed out. "
-            "Raise OLLAMA_TIMEOUT_SECONDS (e.g. 300–600), keep the model loaded, "
+            "Raise OLLAMA_TIMEOUT_SECONDS, keep the model loaded, "
             "or switch OLLAMA_MODEL to a faster model."
         )
-    if "ollama" in text.lower() and (
-        "Could not connect" in text or "ollama serve" in text.lower()
-    ):
+    if "ollama" in lower and ("could not connect" in lower or "ollama serve" in lower):
         return (
             "OpenRouter failed and local Ollama was unreachable. "
             "Start Ollama (ollama serve), confirm OLLAMA_BASE_URL, "
             "and that OLLAMA_MODEL is pulled (e.g. ollama pull qwen3.5:latest)."
         )
-    if "HTTP 429" in text or "rate limit" in text.lower() or "free-tier" in text.lower():
-        if "ollama" in text.lower():
-            # Keep a short Ollama-specific tail from the combined error when present.
-            ollama_tail = ""
-            lower = text.lower()
-            idx = lower.rfind("ollama")
-            if idx >= 0:
-                ollama_tail = " Details: " + text[idx:].strip()[:240]
+    if "HTTP 429" in text or "rate limit" in lower or "free-tier" in lower:
+        if "ollama" in lower:
             return (
                 "OpenRouter free-tier/rate limit was reached and the local Ollama fallback "
                 "also failed. Check Ollama is running with OLLAMA_MODEL pulled "
-                f"(e.g. qwen3.5:latest).{ollama_tail}"
+                "(e.g. qwen3.5:latest)."
             )
         return (
             "AI rate limit or free-tier quota reached on OpenRouter. "
@@ -138,28 +127,50 @@ def format_llm_failure_for_user(error: BaseException) -> str:
             "AI service rejected the API key. "
             "Check OPENROUTER_API_KEY in your .env file."
         )
-    if "timed out" in text.lower():
-        if "ollama" in text.lower():
+    if "timed out" in lower:
+        if "ollama" in lower:
             return (
                 "Local Ollama timed out. Raise OLLAMA_TIMEOUT_SECONDS or use a faster model."
             )
         return "AI request timed out. Check your internet connection and try again."
     if "Could not connect" in text or "ConnectionError" in text:
-        if "ollama" in text.lower():
+        if "ollama" in lower:
             return (
                 "Could not connect to local Ollama. Start it with ollama serve "
                 "and check OLLAMA_BASE_URL."
             )
         return "Could not connect to the AI service. Check your internet connection and try again."
-    if "not found" in text.lower() and "HTTP 404" in text:
+    if "not found" in lower and "HTTP 404" in text:
         return (
             "One or more AI models were not found. "
             "Check MODEL / FALLBACK_MODEL / FALLBACK_MODEL2 / FALLBACK_MODEL3 in your .env file."
         )
-    if "temporarily unavailable" in text.lower() or re.search(r"HTTP 50[0-4]", text):
+    if "temporarily unavailable" in lower or re.search(r"HTTP 50[0-4]", text):
         return "AI service is temporarily unavailable. Please try again later."
 
-    # Already user-friendly from describe_*; keep as-is but shorten multi-failure prefix
-    if text.startswith("Both primary") or text.startswith("All configured AI models failed"):
-        return "AI extraction failed for all configured models. " + text
-    return text
+    if (
+        text.startswith("Both primary")
+        or text.startswith("All configured AI models failed")
+        or "All OpenRouter models failed" in text
+    ):
+        return (
+            "AI extraction failed for all configured models. "
+            "Check MODEL / fallbacks, Ollama settings, and try again."
+        )
+    # Avoid dumping long internal exception chains to the UI.
+    return "AI extraction failed. Please try again or check the application logs."
+
+
+def format_db_error_for_user(error: BaseException) -> str:
+    """Stable UI/CLI message for database failures (details stay in logs)."""
+    logger.exception("Database error: %s", error)
+    return "A database error occurred. Please try again or check the application logs."
+
+
+def format_validation_error_for_user(error: BaseException, *, context: str = "Request") -> str:
+    """Show short domain validation messages; truncate unexpectedly long text."""
+    text = str(error).strip() or "Invalid input."
+    if len(text) > 240:
+        logger.info("Truncating long validation error: %s", text[:500])
+        text = text[:237] + "..."
+    return f"{context} failed: {text}"
