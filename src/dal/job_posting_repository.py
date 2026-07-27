@@ -10,7 +10,10 @@ from src.domain.work_type import WorkType
 
 
 class JobPostingRepository(BaseRepository[JobPostingEntity]):
-    """Handles persistence for job postings, including their linked skills."""
+    """Handles persistence for job postings, including their linked skills.
+
+    Does not commit — callers own the transaction via ``session_scope``.
+    """
 
     def __init__(self, session: Session):
         self.session = session
@@ -52,6 +55,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             content_hash=entity.content_hash,
         )
 
+        self.session.add(orm_obj)
         for index, skill_name in enumerate(entity.skills):
             skill_en = (
                 entity.skills_en[index]
@@ -64,21 +68,20 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             )
             orm_obj.skills.append(skill_orm)
 
-        self.session.add(orm_obj)
         try:
-            self.session.commit()
-            self.session.refresh(orm_obj)
+            self.session.flush()
         except IntegrityError:
+            # Rare unique content_hash race. Roll back this unit of work's failed
+            # flush state, then return the winner if present. Callers that need
+            # multi-statement atomicity should rely on session_scope + pre-checks.
             self.session.rollback()
             if entity.content_hash:
                 existing = self.get_by_content_hash(entity.content_hash)
                 if existing is not None:
                     return existing
             raise
-        except Exception:
-            self.session.rollback()
-            raise
 
+        self.session.refresh(orm_obj)
         entity.id = orm_obj.id
         entity.created_at = orm_obj.created_at
         entity.role_title_en = orm_obj.role_title_en
@@ -98,7 +101,7 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         orm_obj = self.session.get(JobPostingORM, entity_id)
         if orm_obj is not None:
             self.session.delete(orm_obj)
-            self.session.commit()
+            self.session.flush()
 
     def update_review_fields(
         self,
@@ -154,13 +157,8 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
             )
             orm_obj.skills.append(skill_orm)
 
-        try:
-            self.session.commit()
-            self.session.refresh(orm_obj)
-        except Exception:
-            self.session.rollback()
-            raise
-
+        self.session.flush()
+        self.session.refresh(orm_obj)
         return self._to_entity(orm_obj)
 
     def _to_entity(self, orm_obj: JobPostingORM) -> JobPostingEntity:

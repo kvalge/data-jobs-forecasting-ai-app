@@ -420,7 +420,6 @@ def run_prediction(
                 meta=meta,
                 results=result_rows,
             )
-            session.commit()
         summary["run_id"] = run_id
         logger.info(
             "Saved run_id=%s in %s | status=%s results=%d warnings=%d",

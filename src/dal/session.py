@@ -55,10 +55,15 @@ def get_session() -> Session:
 
 @contextmanager
 def session_scope() -> Iterator[Session]:
-    """One session per operation: rollback on error, always close."""
+    """One session per unit of work: commit on success, rollback on error, always close.
+
+    Repositories should flush (and use savepoints) but not commit — ownership of
+    the transaction boundary stays here.
+    """
     session = get_session()
     try:
         yield session
+        session.commit()
     except Exception:
         session.rollback()
         raise

@@ -100,11 +100,11 @@ tests/                      # pytest suite
 | File | Role |
 |------|------|
 | `models.py` | ORM: postings, skills, `forecast_runs`, `forecast_results` |
-| `session.py` | Lazy engine, `session_scope()`, `init_db()` → Alembic upgrade head |
+| `session.py` | Lazy engine, `session_scope()` (commit on success / rollback on error), `init_db()` → Alembic upgrade head |
 | `base_repository.py` | Abstract CRUD |
-| `job_posting_repository.py` | Save/get/delete; `update_review_fields` for UI edits |
+| `job_posting_repository.py` | Save/get/delete/update (flush-only; no commit) |
 | `skill_repository.py` | `get_or_create` by lowercase English `name`; savepoint on unique race |
-| `forecast_repository.py` | Persist/list prediction runs and results |
+| `forecast_repository.py` | Persist/list prediction runs and results (flush-only) |
 
 ### Prediction (`src/prediction/`)
 

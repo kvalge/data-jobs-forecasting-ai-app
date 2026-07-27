@@ -20,7 +20,7 @@
 | 4 | Stricter post-LLM / review-path validation | Done (2026-07-27) |
 | 5 | Sanitize glossary TSV writes + safer errors to UI | Done (2026-07-27) |
 | 6 | CSRF + upload type checks + safer flash messages | Done (2026-07-27) |
-| 7 | Transaction ownership (flush-only repos) | Pending |
+| 7 | Transaction ownership (flush-only repos) | Done (2026-07-27) |
 | 8 | Prediction `database` source fail-closed + UI catch | Pending |
 | 9 | User-selectable LLM mode (OpenRouter+Ollama vs Ollama-only) | Pending |
 | 10 | LLM request metadata logging (privacy-safe) | Pending |
@@ -206,3 +206,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-27 (Step 4):** Tightened DTO bounds (lengths, salary ge/le, skill caps); reject mismatched `skills`/`skills_en`; currency normalize; `validate_review_fields` on review save; preserve original skill labels in `update_review_fields`; UI note that LLM values are untrusted.
 - **2026-07-27 (Step 5):** Glossary field sanitization (no tab/newline, length cap) + atomic TSV write; stop appending provider bodies to user errors; generic DB/validation flash helpers with server-side logging.
 - **2026-07-27 (Step 6):** Flask-WTF CSRF on all mutating forms; require UTF-8 `.txt` uploads (reject binary/null); whitelist flash CSS categories; tests in `tests/test_web_csrf.py`.
+- **2026-07-27 (Step 7):** `session_scope` commits on success; `JobPostingRepository` flush-only (savepoint on IntegrityError); removed extra commit from prediction persist; `tests/test_session_scope.py`.
