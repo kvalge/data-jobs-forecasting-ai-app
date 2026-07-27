@@ -196,7 +196,7 @@ flowchart TD
 ### Prediction / forecasting flow
 
 1. CLI menu 2 or web `/prediction` — choose training window (12/24/36), horizons (3/6/12), models (one/some/all).
-2. Data source from `PREDICTION_DATA_SOURCE`: **`fake`** (default, `data/fake/` aggregates) or **`database`** (stub until implemented).
+2. Data source from `PREDICTION_DATA_SOURCE`: **`fake`** only today (`data/fake/` aggregates). `database` is rejected at config / factory until implemented.
 3. Historical top-K roles/skills by posting volume become forecast targets (UI labels these “Top roles / Top skills”; not model ranking).
 4. Baseline + selected models forecast role demand, skill demand, and avg salary per role.
 5. Soft-fail per series; save `forecast_runs` / `forecast_results`; export `docs/prediction/model_results.md`.
@@ -286,4 +286,4 @@ pytest
 | Alembic migrations + pytest | Done |
 | Descriptive analysis UI + README charts | Done |
 | Forecasting (fake data source + multi-model + persist/export) | Done |
-| Forecasting on live DB aggregates | Stub (`DatabaseSource` / `PREDICTION_DATA_SOURCE=database`) |
+| Forecasting on live DB aggregates | Not ready — `PREDICTION_DATA_SOURCE=database` fail-closed at startup |

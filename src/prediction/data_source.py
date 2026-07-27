@@ -76,14 +76,16 @@ def slice_last_periods(df: pd.DataFrame, months: int) -> pd.DataFrame:
 
 def get_data_source(kind: str | None = None, *, fake_dir: Path | None = None) -> DataSource:
     """Factory: PREDICTION_DATA_SOURCE env or explicit kind (`fake`|`database`)."""
-    from src.prediction.database_source import DatabaseSource
     from src.prediction.fake_file_source import FakeFileSource
 
     resolved = (kind or getattr(config, "PREDICTION_DATA_SOURCE", None) or "fake").strip().lower()
     if resolved in ("fake", "file", "fake_file"):
         return FakeFileSource(fake_dir or DEFAULT_FAKE_DIR)
     if resolved in ("database", "db"):
-        return DatabaseSource()
+        raise ValueError(
+            "PREDICTION_DATA_SOURCE=database is not implemented yet. "
+            "Use PREDICTION_DATA_SOURCE=fake until DatabaseSource aggregates exist."
+        )
     raise ValueError(
-        f"Unknown PREDICTION_DATA_SOURCE={resolved!r}. Use 'fake' or 'database'."
+        f"Unknown PREDICTION_DATA_SOURCE={resolved!r}. Use 'fake' (database is not ready yet)."
     )

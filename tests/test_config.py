@@ -80,3 +80,11 @@ def test_validate_config_rejects_bad_prediction_source():
     os.environ["PREDICTION_DATA_SOURCE"] = "mongo"
     with pytest.raises(EnvironmentError, match="PREDICTION_DATA_SOURCE"):
         config.validate_config()
+
+
+@pytest.mark.usefixtures("restore_env")
+def test_validate_config_rejects_database_source_until_implemented():
+    _set_all_required()
+    os.environ["PREDICTION_DATA_SOURCE"] = "database"
+    with pytest.raises(EnvironmentError, match="not implemented"):
+        config.validate_config()

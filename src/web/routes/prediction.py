@@ -66,7 +66,7 @@ def prediction_page():
                         f"{len(outcome.errors)} model/target warning(s); see summary.",
                         "info",
                     )
-            except ValueError as e:
+            except (ValueError, NotImplementedError) as e:
                 flash(str(e), "error")
             except (SQLAlchemyError, EnvironmentError, FileNotFoundError, OSError) as e:
                 flash(f"Prediction failed: {e}", "error")

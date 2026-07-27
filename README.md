@@ -105,7 +105,7 @@ The planned functionalities have been implemented. Due to the small amount of re
    - `FLASK_HOST` defaults to `127.0.0.1` (loopback). The app has **no authentication** — do not bind to `0.0.0.0` on an untrusted network.
    - `FLASK_DEBUG` defaults to `false`. Only enable for local debugging; never expose the debugger remotely.
    - `MAX_POSTING_CHARS` caps posting text before any LLM call (default `100000`). Oversized paste/upload is rejected early (stricter than the 1 MB upload byte limit).
-   - `PREDICTION_DATA_SOURCE` is optional (`fake` default, or `database` when the live aggregator is implemented).
+   - `PREDICTION_DATA_SOURCE` is optional (`fake` default). `database` is reserved but **rejected at startup** until `DatabaseSource` is implemented.
    Example `DATABASE_URL` shape:
 
    ```
@@ -144,7 +144,7 @@ Prediction currently trains on synthetic market series under `data/fake/` (gitig
 python scripts/generate_fake_job_market.py
 ```
 
-This creates ~10 000 postings over 36 months (8–12 skills each), plus day / week / month aggregates for roles, skills, and totals. Switch to live DB aggregates later by implementing `DatabaseSource` and setting `PREDICTION_DATA_SOURCE=database`.
+This creates ~10 000 postings over 36 months (8–12 skills each), plus day / week / month aggregates for roles, skills, and totals. Live DB aggregates (`PREDICTION_DATA_SOURCE=database`) are not available yet — keep `fake` until `DatabaseSource` is implemented.
 
 ## Run — Web UI
 

@@ -81,7 +81,7 @@ def prediction_flow() -> None:
             models=models,
             persist=True,
         )
-    except (ValueError, FileNotFoundError, EnvironmentError, SQLAlchemyError) as e:
+    except (ValueError, NotImplementedError, FileNotFoundError, EnvironmentError, SQLAlchemyError) as e:
         print(f"\nPrediction failed: {e}")
         return
 

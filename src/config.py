@@ -120,6 +120,11 @@ def validate_config() -> None:
             "PREDICTION_DATA_SOURCE must be 'fake' or 'database' "
             f"(got {PREDICTION_DATA_SOURCE!r})."
         )
+    if PREDICTION_DATA_SOURCE == "database":
+        raise EnvironmentError(
+            "PREDICTION_DATA_SOURCE=database is not implemented yet. "
+            "Set PREDICTION_DATA_SOURCE=fake (default) to use data/fake/ series."
+        )
     if len(llm_model_chain()) < 2:
         raise EnvironmentError(
             "At least MODEL and FALLBACK_MODEL must be set to distinct non-empty values."
