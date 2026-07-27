@@ -15,7 +15,7 @@
 |------|--------|--------|
 | 0 | Create this plan file | Done (2026-07-27) |
 | 1 | Web runtime hardening (debug, bind, SECRET_KEY) | Done (2026-07-27) |
-| 2 | Cap posting size before any LLM call | Pending |
+| 2 | Cap posting size before any LLM call | Done (2026-07-27) |
 | 3 | Allowlist `OLLAMA_BASE_URL` (SSRF guard) | Pending |
 | 4 | Stricter post-LLM / review-path validation | Pending |
 | 5 | Sanitize glossary TSV writes + safer errors to UI | Pending |
@@ -201,3 +201,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-27:** Plan created from full-project review (architecture, LLM chain, security, data integrity, web/CLI, prediction, tests/docs, ops). No application code changes. Awaiting permission to begin Step 1.
 - **2026-07-27:** Plan revised (still not implementing): Step 9 is a **user-selectable** LLM mode (`openrouter_ollama` vs `ollama_only`); added Step 10 for privacy-safe LLM request metadata logging to a dedicated log file + tests; renumbered cleanup/docs to Steps 11–12.
 - **2026-07-27 (Step 1):** Added `src/web/runtime.py` — `FLASK_DEBUG` default false, `FLASK_HOST` default `127.0.0.1`, strong `SECRET_KEY` required unless `FLASK_ENV=development` (placeholders rejected). `__main__.py` uses those helpers; `create_app(run_startup=True)` enforces the secret policy. Updated `.env.example`, README, PROJECT_SUMMARY; tests in `tests/test_web_runtime.py`.
+- **2026-07-27 (Step 2):** Added `MAX_POSTING_CHARS` (default 100000) in config; `ingest_posting_text` rejects oversized text before DB/LLM. Docs + `tests/test_posting_ingest.py`.

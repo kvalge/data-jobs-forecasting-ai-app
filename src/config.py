@@ -27,6 +27,8 @@ OLLAMA_FALLBACK_ENABLED: bool = (
 OLLAMA_BASE_URL: str = (os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434").strip()
 OLLAMA_MODEL: str = (os.getenv("OLLAMA_MODEL") or "qwen3.5:latest").strip()
 OLLAMA_TIMEOUT_SECONDS: int = int((os.getenv("OLLAMA_TIMEOUT_SECONDS") or "180").strip() or "180")
+# Max characters of posting text sent to any LLM (CLI + web). Default 100_000.
+MAX_POSTING_CHARS: int = int((os.getenv("MAX_POSTING_CHARS") or "100000").strip() or "100000")
 # Prediction series source: "fake" (data/fake CSVs) or "database" (future).
 PREDICTION_DATA_SOURCE: str = (os.getenv("PREDICTION_DATA_SOURCE") or "fake").strip() or "fake"
 
@@ -57,6 +59,7 @@ def validate_config() -> None:
     global OPENROUTER_API_KEY, DATABASE_URL, MODEL, FALLBACK_MODEL
     global FALLBACK_MODEL2, FALLBACK_MODEL3, PREDICTION_DATA_SOURCE
     global OLLAMA_FALLBACK_ENABLED, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT_SECONDS
+    global MAX_POSTING_CHARS
 
     missing = [
         name
@@ -90,6 +93,14 @@ def validate_config() -> None:
         raise EnvironmentError("OLLAMA_TIMEOUT_SECONDS must be an integer.") from e
     if OLLAMA_TIMEOUT_SECONDS < 1:
         raise EnvironmentError("OLLAMA_TIMEOUT_SECONDS must be >= 1.")
+    try:
+        MAX_POSTING_CHARS = int(
+            (os.getenv("MAX_POSTING_CHARS") or "100000").strip() or "100000"
+        )
+    except ValueError as e:
+        raise EnvironmentError("MAX_POSTING_CHARS must be an integer.") from e
+    if MAX_POSTING_CHARS < 1:
+        raise EnvironmentError("MAX_POSTING_CHARS must be >= 1.")
     PREDICTION_DATA_SOURCE = (os.getenv("PREDICTION_DATA_SOURCE") or "fake").strip() or "fake"
     if PREDICTION_DATA_SOURCE not in ("fake", "database"):
         raise EnvironmentError(
