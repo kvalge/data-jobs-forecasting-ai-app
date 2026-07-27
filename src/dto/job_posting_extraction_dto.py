@@ -12,6 +12,9 @@ class JobPostingExtractionDTO(BaseModel):
 
     company_name: Optional[str] = Field(None, description="Name of the hiring company")
     role_title: str = Field(..., description="Job title as stated in the posting")
+    role_title_en: Optional[str] = Field(
+        None, description="English form of the job title (same as role_title if already English)"
+    )
     responsibilities: Optional[str] = Field(None, description="Summary of tasks/duties")
     requirements: Optional[str] = Field(None, description="Required qualifications/experience")
     application_deadline: Optional[date] = Field(None, description="Application deadline, if stated")
@@ -26,3 +29,7 @@ class JobPostingExtractionDTO(BaseModel):
         False, description="True if posting includes an equal opportunity / non-discrimination statement"
     )
     skills: list[str] = Field(default_factory=list, description="List of required/mentioned skills or technologies")
+    skills_en: list[str] = Field(
+        default_factory=list,
+        description="English forms of skills (same order as skills; same text when already English)",
+    )

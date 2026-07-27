@@ -4,13 +4,13 @@ from datetime import date
 
 from pydantic import ValidationError
 
+from src.bll.glossary import lookup_english
 from src.bll.job_posting_validator import validate_extraction_dto
 from src.dal.job_posting_repository import JobPostingRepository
 from src.domain.job_posting_entity import JobPostingEntity
 from src.domain.posting_hash import hash_posting_text
 from src.dto.job_posting_extraction_dto import JobPostingExtractionDTO
 from src.llm.llm_client_factory import get_llm_client
-from src.llm.translation import OpenRouterTranslator, get_translator
 
 
 @dataclass(frozen=True)
@@ -19,17 +19,30 @@ class ExtractAndSaveResult:
     created: bool
 
 
-class ExtractionService:
-    """Orchestrates: LLM extraction -> validation -> domain entity -> persistence."""
+def _english_label(original: str, llm_english: str | None = None) -> str:
+    """Resolve English without extra LLM calls: glossary > extract field > original."""
+    text = (original or "").strip()
+    if not text:
+        return text
+    from_glossary = lookup_english(text)
+    if from_glossary:
+        return from_glossary
+    from_llm = (llm_english or "").strip()
+    if from_llm:
+        return from_llm
+    return text
 
-    def __init__(
-        self,
-        job_posting_repository: JobPostingRepository,
-        translator: OpenRouterTranslator | None = None,
-    ):
+
+class ExtractionService:
+    """Orchestrates: one LLM extraction -> validation -> domain entity -> persistence.
+
+    English role/skill labels come from the same extraction JSON (plus glossary
+    overrides). No separate translation API calls on the ingest path.
+    """
+
+    def __init__(self, job_posting_repository: JobPostingRepository):
         self.job_posting_repository = job_posting_repository
         self.llm_client = get_llm_client()
-        self.translator = translator or get_translator()
 
     def extract_and_save(self, posting_text: str) -> ExtractAndSaveResult:
         content_hash = hash_posting_text(posting_text)
@@ -37,6 +50,7 @@ class ExtractionService:
         if existing is not None:
             return ExtractAndSaveResult(entity=existing, created=False)
 
+        # Single successful OpenRouter call (fallbacks only if this model fails).
         raw_result = self.llm_client.extract(posting_text)
 
         try:
@@ -51,8 +65,7 @@ class ExtractionService:
 
         entity = self._dto_to_entity(dto, posting_text, content_hash)
         saved = self.job_posting_repository.save(entity)
-        # Glossary is updated only when the user revises translations on the review page
-        # (not on initial extract — avoids English→English noise and locking in bad LLM output).
+        # Glossary is updated only when the user revises translations on the review page.
         return ExtractAndSaveResult(entity=saved, created=True)
 
     def _dto_to_entity(
@@ -61,8 +74,12 @@ class ExtractionService:
         posting_text: str,
         content_hash: str,
     ) -> JobPostingEntity:
-        role_title_en = self.translator.to_english(dto.role_title)
-        skills_en = [self.translator.to_english(skill) for skill in dto.skills]
+        role_title_en = _english_label(dto.role_title, dto.role_title_en)
+
+        skills_en: list[str] = []
+        for index, skill in enumerate(dto.skills):
+            llm_en = dto.skills_en[index] if index < len(dto.skills_en) else None
+            skills_en.append(_english_label(skill, llm_en))
 
         return JobPostingEntity(
             company_name=dto.company_name,

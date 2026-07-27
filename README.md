@@ -4,7 +4,7 @@ An LLM-powered application that extracts structured data from data/AI job postin
 
 ## What it does
 
-Paste a job posting's text into the app (CLI or web UI). An LLM (via OpenRouter) extracts structured fields — company, role title, responsibilities, requirements, application deadline, salary, location, work type (onsite/hybrid/remote), nondiscrimination disclaimer (y/n), and required skills — and saves them to a PostgreSQL database.
+Paste a job posting's text into the app (CLI or web UI). An LLM (via OpenRouter) extracts structured fields — company, role title (plus English), responsibilities, requirements, application deadline, salary, location, work type (onsite/hybrid/remote), nondiscrimination disclaimer (y/n), and required skills (plus English) — in **one API call** (extra models are tried only if that call fails), then saves them to a PostgreSQL database.
 
 Once enough postings are collected, the app analyzes the data (most common roles, companies, skills, locations, salary ranges etc) to surface trends in the data/AI job market — and can point to forecasted momentum for specific skills or roles over the next 3, 6, or 12 months.
 

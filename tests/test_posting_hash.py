@@ -38,21 +38,19 @@ def test_extract_and_save_skips_llm_when_hash_exists():
     repo.save.assert_not_called()
 
 
-def test_extract_and_save_calls_llm_when_new(monkeypatch):
+def test_extract_and_save_calls_llm_once_when_new():
     content = "Brand new posting"
     repo = MagicMock()
     repo.get_by_content_hash.return_value = None
     saved = JobPostingEntity(id=1, role_title="Dev", content_hash=hash_posting_text(content))
     repo.save.return_value = saved
 
-    translator = MagicMock()
-    translator.to_english.side_effect = lambda text: text
-
-    service = ExtractionService(repo, translator=translator)
+    service = ExtractionService(repo)
     service.llm_client = MagicMock()
     service.llm_client.extract.return_value = {
         "company_name": "Co",
         "role_title": "Dev",
+        "role_title_en": "Dev",
         "responsibilities": None,
         "requirements": None,
         "application_deadline": None,
@@ -65,6 +63,7 @@ def test_extract_and_save_calls_llm_when_new(monkeypatch):
         "work_type": "unknown",
         "has_nondiscrimination_disclaimer": False,
         "skills": ["Python"],
+        "skills_en": ["Python"],
     }
 
     result = service.extract_and_save(content)
@@ -75,3 +74,40 @@ def test_extract_and_save_calls_llm_when_new(monkeypatch):
     saved_entity = repo.save.call_args.args[0]
     assert saved_entity.role_title_en == "Dev"
     assert saved_entity.skills_en == ["Python"]
+
+
+def test_extract_prefers_glossary_over_llm_english(monkeypatch):
+    content = "Eesti posting"
+    repo = MagicMock()
+    repo.get_by_content_hash.return_value = None
+    repo.save.side_effect = lambda entity: entity
+
+    monkeypatch.setattr(
+        "src.bll.extraction_service.lookup_english",
+        lambda text: "Data Analyst" if text == "Andmeanalüütik" else None,
+    )
+
+    service = ExtractionService(repo)
+    service.llm_client = MagicMock()
+    service.llm_client.extract.return_value = {
+        "company_name": "Co",
+        "role_title": "Andmeanalüütik",
+        "role_title_en": "Wrong From LLM",
+        "responsibilities": None,
+        "requirements": None,
+        "application_deadline": None,
+        "salary_min": None,
+        "salary_max": None,
+        "salary_currency": None,
+        "location": None,
+        "country": None,
+        "city": None,
+        "work_type": "unknown",
+        "has_nondiscrimination_disclaimer": False,
+        "skills": [],
+        "skills_en": [],
+    }
+
+    result = service.extract_and_save(content)
+    assert result.entity.role_title_en == "Data Analyst"
+    service.llm_client.extract.assert_called_once()

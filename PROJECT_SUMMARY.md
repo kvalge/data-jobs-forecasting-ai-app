@@ -7,7 +7,7 @@ A **portfolio / WIP Python app** that:
 1. Accepts raw job posting text (CLI `.txt` path, or web paste / `.txt` upload)
 2. Uses an **LLM via OpenRouter** to extract structured fields
 3. Validates with **Pydantic** plus domain rules
-4. Translates role titles and skills to English (glossary first, then LLM)
+4. Resolves English role titles and skills from the **same** extraction response (glossary overrides when present)
 5. Saves postings and skills into **PostgreSQL** (SQLAlchemy + Alembic)
 6. Offers a **Flask UI** to review/edit postings, run descriptive analysis, and run forecasts
 7. Runs **descriptive analysis** (top companies/roles/skills, salary stats) and PNG chart export
@@ -70,7 +70,7 @@ tests/                      # pytest suite
 | File | Role |
 |------|------|
 | `posting_ingest.py` | Shared CLI/web entry: session → `ExtractionService.extract_and_save` |
-| `extraction_service.py` | Dedup by hash → LLM extract → validate → translate EN → save |
+| `extraction_service.py` | Dedup by hash → one LLM extract (EN in same JSON) → validate → save |
 | `job_posting_validator.py` | Domain rules (non-empty title, salary range, drop blank skills) |
 | `glossary.py` | Lookup + save user-corrected original→English pairs (skip en→en) |
 | `analysis_service.py` | Descriptive aggregates (top companies/roles/skills, salary stats) |
@@ -161,7 +161,7 @@ flowchart TD
     D -->|exists| E[Return existing entity]
     D -->|new| F[OpenRouterClient.extract]
     F --> G[Pydantic DTO + domain validator]
-    G --> H[Translate role_title_en + skills_en]
+    G --> H[English from extract JSON + glossary]
     H --> I[JobPostingRepository.save]
     I --> J[Skill get_or_create by English name]
     J --> K[Commit]
@@ -177,8 +177,8 @@ flowchart TD
 3. **Dedup** — SHA-256 of stripped text; if known, skip LLM and return existing row.
 4. **LLM extraction** — fixed JSON schema; primary model then fallback.
 5. **Validation** — Pydantic schema, then domain rules.
-6. **Translation** — glossary lookup, else LLM; on failure keep original text.
-7. **Persistence** — posting + skills (unique on lowercase English name) + M2M links.
+6. **English labels** — from extract JSON + glossary override (no extra translation API calls)
+7. **Persistence** — posting + skills (unique on lowercase English name) + M2M links
 8. **Web only** — open review page; if user corrects translations, save real original→English pairs to glossary (skip English→English).
 
 ### Descriptive analysis flow
@@ -217,7 +217,7 @@ raw posting text (str)
 | 3 | `ExtractionService` | Hash lookup; skip LLM if duplicate |
 | 4 | `OpenRouterClient.extract` | Primary then fallback model |
 | 5 | DTO + `validate_extraction_dto` | Schema + business rules |
-| 6 | Translator + glossary | English role title and skills (glossary first) |
+| 6 | Extract JSON + glossary | English role title and skills (no second LLM round-trip) |
 | 7 | Repository `save` | Insert posting; `get_or_create` skills; commit |
 | 8 | Web edit (optional) | `update_review_fields`; glossary only for corrected non-identity translations |
 
@@ -226,10 +226,10 @@ raw posting text (str)
 | Field | Source | Notes |
 |-------|--------|--------|
 | company, role, responsibilities, requirements | LLM | `role_title` required |
-| `role_title_en` | glossary / translate | Same as title if already English |
+| `role_title_en` | same extract call + glossary | Same as title if already English |
 | salary, deadline, location, country, city | LLM | optional |
 | `work_type`, nondiscrimination flag | LLM | enum / bool |
-| `skills` / `skills_en` | LLM + translate | DB skill `name` = lowercase English |
+| `skills` / `skills_en` | same extract call + glossary | DB skill `name` = lowercase English |
 | `display_name` / `display_name_en` | first-seen original + English | on `skills` |
 | `content_hash`, `raw_text`, `date_added` | app | not from LLM inventively |
 

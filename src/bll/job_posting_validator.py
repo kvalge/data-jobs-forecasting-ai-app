@@ -20,11 +20,24 @@ def validate_extraction_dto(dto: JobPostingExtractionDTO) -> JobPostingExtractio
         )
 
     # Drop blank skill strings; keep order, preserve first-seen casing for later storage
-    skills = [skill.strip() for skill in dto.skills if skill and skill.strip()]
+    skills: list[str] = []
+    skills_en: list[str] = []
+    for index, skill in enumerate(dto.skills):
+        cleaned = (skill or "").strip()
+        if not cleaned:
+            continue
+        skills.append(cleaned)
+        if index < len(dto.skills_en) and (dto.skills_en[index] or "").strip():
+            skills_en.append(dto.skills_en[index].strip())
+        else:
+            skills_en.append(cleaned)
+
+    role_title_en = (dto.role_title_en or "").strip() or role_title
 
     return JobPostingExtractionDTO(
         company_name=dto.company_name,
         role_title=role_title,
+        role_title_en=role_title_en,
         responsibilities=dto.responsibilities,
         requirements=dto.requirements,
         application_deadline=dto.application_deadline,
@@ -37,4 +50,5 @@ def validate_extraction_dto(dto: JobPostingExtractionDTO) -> JobPostingExtractio
         work_type=dto.work_type,
         has_nondiscrimination_disclaimer=dto.has_nondiscrimination_disclaimer,
         skills=skills,
+        skills_en=skills_en,
     )
