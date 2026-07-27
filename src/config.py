@@ -5,12 +5,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-REQUIRED_ENV_VARS = (
+# Always required regardless of LLM provider mode.
+ALWAYS_REQUIRED_ENV_VARS = ("DATABASE_URL",)
+
+# Required when LLM_PROVIDER_MODE=openrouter_ollama (default).
+OPENROUTER_REQUIRED_ENV_VARS = (
     "OPENROUTER_API_KEY",
-    "DATABASE_URL",
     "MODEL",
     "FALLBACK_MODEL",
 )
+
+# Back-compat alias used by older tests/docs.
+REQUIRED_ENV_VARS = ALWAYS_REQUIRED_ENV_VARS + OPENROUTER_REQUIRED_ENV_VARS
+
+LLM_PROVIDER_MODE_OPENROUTER_OLLAMA = "openrouter_ollama"
+LLM_PROVIDER_MODE_OLLAMA_ONLY = "ollama_only"
 
 OPENROUTER_API_KEY: str | None = os.getenv("OPENROUTER_API_KEY")
 DATABASE_URL: str | None = os.getenv("DATABASE_URL")
@@ -19,7 +28,12 @@ FALLBACK_MODEL: str | None = os.getenv("FALLBACK_MODEL")
 # Optional extra fallbacks when primary + FALLBACK_MODEL hit limits / fail.
 FALLBACK_MODEL2: str | None = os.getenv("FALLBACK_MODEL2")
 FALLBACK_MODEL3: str | None = os.getenv("FALLBACK_MODEL3")
-# Local Ollama fallback after all OpenRouter models fail (e.g. free-tier limits).
+# openrouter_ollama (default) | ollama_only
+LLM_PROVIDER_MODE: str = (
+    (os.getenv("LLM_PROVIDER_MODE") or LLM_PROVIDER_MODE_OPENROUTER_OLLAMA).strip().lower()
+    or LLM_PROVIDER_MODE_OPENROUTER_OLLAMA
+)
+# Local Ollama fallback after all OpenRouter models fail (openrouter_ollama mode).
 OLLAMA_FALLBACK_ENABLED: bool = (
     (os.getenv("OLLAMA_FALLBACK_ENABLED") or "true").strip().lower()
     in ("1", "true", "yes", "on")
@@ -35,6 +49,19 @@ OLLAMA_ALLOW_REMOTE: bool = (
 MAX_POSTING_CHARS: int = int((os.getenv("MAX_POSTING_CHARS") or "100000").strip() or "100000")
 # Prediction series source: "fake" (data/fake CSVs) or "database" (future).
 PREDICTION_DATA_SOURCE: str = (os.getenv("PREDICTION_DATA_SOURCE") or "fake").strip() or "fake"
+
+
+def normalize_llm_provider_mode(raw: str | None) -> str:
+    """Map aliases to canonical LLM_PROVIDER_MODE values."""
+    mode = (raw or LLM_PROVIDER_MODE_OPENROUTER_OLLAMA).strip().lower()
+    if mode in ("openrouter", LLM_PROVIDER_MODE_OPENROUTER_OLLAMA):
+        return LLM_PROVIDER_MODE_OPENROUTER_OLLAMA
+    if mode in ("ollama", LLM_PROVIDER_MODE_OLLAMA_ONLY):
+        return LLM_PROVIDER_MODE_OLLAMA_ONLY
+    raise EnvironmentError(
+        f"LLM_PROVIDER_MODE must be '{LLM_PROVIDER_MODE_OPENROUTER_OLLAMA}' "
+        f"or '{LLM_PROVIDER_MODE_OLLAMA_ONLY}' (got {raw!r})."
+    )
 
 
 def llm_model_chain() -> list[str]:
@@ -61,26 +88,35 @@ def validate_config() -> None:
     Call this at application startup before using the DB or LLM clients.
     """
     global OPENROUTER_API_KEY, DATABASE_URL, MODEL, FALLBACK_MODEL
-    global FALLBACK_MODEL2, FALLBACK_MODEL3, PREDICTION_DATA_SOURCE
+    global FALLBACK_MODEL2, FALLBACK_MODEL3, PREDICTION_DATA_SOURCE, LLM_PROVIDER_MODE
     global OLLAMA_FALLBACK_ENABLED, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT_SECONDS
     global OLLAMA_ALLOW_REMOTE, MAX_POSTING_CHARS
 
+    LLM_PROVIDER_MODE = normalize_llm_provider_mode(os.getenv("LLM_PROVIDER_MODE"))
+
     missing = [
         name
-        for name in REQUIRED_ENV_VARS
+        for name in ALWAYS_REQUIRED_ENV_VARS
         if not (os.getenv(name) or "").strip()
     ]
+    if LLM_PROVIDER_MODE == LLM_PROVIDER_MODE_OPENROUTER_OLLAMA:
+        missing.extend(
+            name
+            for name in OPENROUTER_REQUIRED_ENV_VARS
+            if not (os.getenv(name) or "").strip()
+        )
     if missing:
-        names = ", ".join(missing)
+        names = ", ".join(dict.fromkeys(missing))
         raise EnvironmentError(
             f"Missing or empty required environment variable(s): {names}. "
-            "Copy .env.example to .env and fill in all values."
+            "Copy .env.example to .env and fill in all values "
+            f"(mode={LLM_PROVIDER_MODE})."
         )
 
-    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
     DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-    MODEL = os.getenv("MODEL", "").strip()
-    FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "").strip()
+    OPENROUTER_API_KEY = (os.getenv("OPENROUTER_API_KEY") or "").strip() or None
+    MODEL = (os.getenv("MODEL") or "").strip() or None
+    FALLBACK_MODEL = (os.getenv("FALLBACK_MODEL") or "").strip() or None
     FALLBACK_MODEL2 = (os.getenv("FALLBACK_MODEL2") or "").strip() or None
     FALLBACK_MODEL3 = (os.getenv("FALLBACK_MODEL3") or "").strip() or None
     OLLAMA_FALLBACK_ENABLED = (
@@ -98,6 +134,8 @@ def validate_config() -> None:
         allow_remote=OLLAMA_ALLOW_REMOTE,
     )
     OLLAMA_MODEL = (os.getenv("OLLAMA_MODEL") or "qwen3.5:latest").strip()
+    if not OLLAMA_MODEL:
+        raise EnvironmentError("OLLAMA_MODEL is missing or empty.")
     try:
         OLLAMA_TIMEOUT_SECONDS = int(
             (os.getenv("OLLAMA_TIMEOUT_SECONDS") or "180").strip() or "180"
@@ -125,7 +163,16 @@ def validate_config() -> None:
             "PREDICTION_DATA_SOURCE=database is not implemented yet. "
             "Set PREDICTION_DATA_SOURCE=fake (default) to use data/fake/ series."
         )
-    if len(llm_model_chain()) < 2:
-        raise EnvironmentError(
-            "At least MODEL and FALLBACK_MODEL must be set to distinct non-empty values."
-        )
+
+    if LLM_PROVIDER_MODE == LLM_PROVIDER_MODE_OPENROUTER_OLLAMA:
+        OPENROUTER_API_KEY = (OPENROUTER_API_KEY or "").strip()
+        MODEL = (MODEL or "").strip()
+        FALLBACK_MODEL = (FALLBACK_MODEL or "").strip()
+        if len(llm_model_chain()) < 2:
+            raise EnvironmentError(
+                "At least MODEL and FALLBACK_MODEL must be set to distinct "
+                "non-empty values when LLM_PROVIDER_MODE=openrouter_ollama."
+            )
+    else:
+        # ollama_only: OpenRouter vars optional; local Ollama is required.
+        OLLAMA_FALLBACK_ENABLED = True

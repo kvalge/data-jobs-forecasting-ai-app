@@ -9,6 +9,7 @@ import logging
 import requests
 
 import src.config as config
+from src.llm.base_llm_client import BaseLLMClient
 from src.llm.error_messages import describe_http_status, describe_request_exception
 from src.llm.ollama_url import validate_ollama_base_url
 from src.llm.openrouter_client import EXTRACTION_SYSTEM_PROMPT, OpenRouterClient
@@ -16,7 +17,7 @@ from src.llm.openrouter_client import EXTRACTION_SYSTEM_PROMPT, OpenRouterClient
 logger = logging.getLogger(__name__)
 
 
-class OllamaClient:
+class OllamaClient(BaseLLMClient):
     """Call a local Ollama model via the native /api/chat endpoint."""
 
     def __init__(self) -> None:
@@ -46,7 +47,13 @@ class OllamaClient:
         }
 
         timeout = config.OLLAMA_TIMEOUT_SECONDS
-        logger.info("OpenRouter exhausted; trying Ollama model %s at %s", model_name, url)
+        mode = getattr(config, "LLM_PROVIDER_MODE", "")
+        if str(mode).lower() in ("ollama_only", "ollama"):
+            logger.info("Using Ollama-only mode with model %s at %s", model_name, url)
+        else:
+            logger.info(
+                "OpenRouter exhausted; trying Ollama model %s at %s", model_name, url
+            )
 
         try:
             response = requests.post(

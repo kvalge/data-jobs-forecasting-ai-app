@@ -9,10 +9,13 @@ import src.config as config
 
 def _set_all_required(**overrides: str) -> None:
     values = {
+        "LLM_PROVIDER_MODE": "openrouter_ollama",
         "OPENROUTER_API_KEY": "test-key",
         "DATABASE_URL": "postgresql+psycopg2://u:p@localhost/db",
         "MODEL": "primary-model",
         "FALLBACK_MODEL": "fallback-model",
+        "OLLAMA_BASE_URL": "http://127.0.0.1:11434",
+        "OLLAMA_MODEL": "qwen3.5:latest",
     }
     values.update(overrides)
     for name, value in values.items():
@@ -28,6 +31,7 @@ def _set_all_required(**overrides: str) -> None:
 def test_validate_config_raises_when_vars_missing():
     for name in config.REQUIRED_ENV_VARS:
         os.environ.pop(name, None)
+    os.environ["LLM_PROVIDER_MODE"] = "openrouter_ollama"
 
     with pytest.raises(EnvironmentError, match="Missing or empty"):
         config.validate_config()
@@ -57,6 +61,7 @@ def test_validate_config_strips_and_sets_globals():
     assert config.MODEL == "model-a"
     assert config.FALLBACK_MODEL == "model-b"
     assert config.PREDICTION_DATA_SOURCE == "fake"
+    assert config.LLM_PROVIDER_MODE == "openrouter_ollama"
     assert config.llm_model_chain() == ["model-a", "model-b"]
 
 
@@ -87,4 +92,25 @@ def test_validate_config_rejects_database_source_until_implemented():
     _set_all_required()
     os.environ["PREDICTION_DATA_SOURCE"] = "database"
     with pytest.raises(EnvironmentError, match="not implemented"):
+        config.validate_config()
+
+
+@pytest.mark.usefixtures("restore_env")
+def test_validate_config_ollama_only_skips_openrouter_vars():
+    for name in config.OPENROUTER_REQUIRED_ENV_VARS:
+        os.environ.pop(name, None)
+    os.environ["LLM_PROVIDER_MODE"] = "ollama_only"
+    os.environ["DATABASE_URL"] = "postgresql+psycopg2://u:p@localhost/db"
+    os.environ["OLLAMA_BASE_URL"] = "http://127.0.0.1:11434"
+    os.environ["OLLAMA_MODEL"] = "qwen3.5:latest"
+
+    config.validate_config()
+    assert config.LLM_PROVIDER_MODE == "ollama_only"
+    assert config.OLLAMA_MODEL == "qwen3.5:latest"
+
+
+@pytest.mark.usefixtures("restore_env")
+def test_validate_config_rejects_unknown_provider_mode():
+    _set_all_required(LLM_PROVIDER_MODE="bedrock")
+    with pytest.raises(EnvironmentError, match="LLM_PROVIDER_MODE"):
         config.validate_config()

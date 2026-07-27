@@ -61,7 +61,7 @@ tests/                      # pytest suite
 | File | Role |
 |------|------|
 | `src/main.py` | CLI menu; posting ingest + prediction prompts |
-| `src/config.py` | Loads `.env`; `validate_config()`; `llm_model_chain()`; Ollama + `PREDICTION_DATA_SOURCE` |
+| `src/config.py` | Loads `.env`; `validate_config()`; `llm_model_chain()`; `LLM_PROVIDER_MODE`; Ollama + prediction source |
 | `src/web/__main__.py` | Runs Flask app (`python -m src.web`); loopback bind, debug from env |
 | `src/web/__init__.py` | `create_app()` — CSRFProtect, blueprints for postings, analysis, prediction |
 | `src/web/runtime.py` | `SECRET_KEY` policy, `FLASK_HOST` / `FLASK_DEBUG` helpers |
@@ -126,7 +126,7 @@ tests/                      # pytest suite
 | `ollama_url.py` | `OLLAMA_BASE_URL` loopback allowlist (SSRF guard; remote opt-in) |
 | `translation.py` | Leftover OpenRouter label helper (not used on the ingest path) |
 | `error_messages.py` | User-facing messages for 429 / API key / timeout / Ollama / connection |
-| `llm_client_factory.py` | Returns `OpenRouterClient` (Ollama is invoked from inside extract) |
+| `llm_client_factory.py` | Returns OpenRouter or Ollama client from `LLM_PROVIDER_MODE` |
 
 ### Web (`src/web/`)
 

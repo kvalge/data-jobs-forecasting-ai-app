@@ -134,7 +134,11 @@ class OpenRouterClient(BaseLLMClient):
         return "\n".join(lines).strip()
 
     def extract(self, posting_text: str) -> dict:
-        """Try OpenRouter model chain; on total failure, fall back to local Ollama."""
+        """Try OpenRouter model chain; on total failure, optionally fall back to Ollama.
+
+        Used when LLM_PROVIDER_MODE=openrouter_ollama. For ollama_only, the factory
+        returns OllamaClient directly instead.
+        """
         models = config.llm_model_chain()
         if not models:
             raise ValueError("No LLM models configured")

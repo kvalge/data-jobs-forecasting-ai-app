@@ -79,6 +79,7 @@ The planned functionalities have been implemented. Due to the small amount of re
 3. Copy `.env.example` to `.env` and fill in your own values:
 
    ```
+   LLM_PROVIDER_MODE=openrouter_ollama
    OPENROUTER_API_KEY=
    DATABASE_URL=
    MODEL=
@@ -97,9 +98,11 @@ The planned functionalities have been implemented. Due to the small amount of re
    OLLAMA_TIMEOUT_SECONDS=180
    ```
 
-   - `OPENROUTER_API_KEY`, `DATABASE_URL`, `MODEL`, and `FALLBACK_MODEL` are required (non-empty).
+   - `LLM_PROVIDER_MODE`: `openrouter_ollama` (default) tries OpenRouter models then optional Ollama; `ollama_only` uses local Ollama only (no OpenRouter API key required).
+   - `DATABASE_URL` is always required.
+   - For `openrouter_ollama`: `OPENROUTER_API_KEY`, `MODEL`, and `FALLBACK_MODEL` are required (non-empty).
    - `FALLBACK_MODEL2` and `FALLBACK_MODEL3` are optional; when set, they are tried if earlier OpenRouter models fail or hit rate limits.
-   - After **all** OpenRouter models fail (e.g. free-tier limits), the app tries local **Ollama** (`OLLAMA_MODEL`, default `qwen3.5:latest`) via `/api/chat` with thinking disabled. Set `OLLAMA_FALLBACK_ENABLED=false` to disable. Requires Ollama running (`ollama serve`). `OLLAMA_TIMEOUT_SECONDS` defaults to 180 (raise if cold loads still time out).
+   - After **all** OpenRouter models fail (e.g. free-tier limits), the app tries local **Ollama** when `OLLAMA_FALLBACK_ENABLED=true` (default). In `ollama_only` mode, Ollama is the only provider. Requires Ollama running (`ollama serve`). `OLLAMA_TIMEOUT_SECONDS` defaults to 180.
    - `OLLAMA_BASE_URL` must be loopback by default (`127.0.0.1`, `localhost`, or `::1`) to avoid SSRF. Set `OLLAMA_ALLOW_REMOTE=true` only for a trusted remote Ollama.
    - `SECRET_KEY` is required for the Flask UI unless `FLASK_ENV=development` (known placeholders are rejected). Use a long random value for anything beyond trusted local use.
    - `FLASK_HOST` defaults to `127.0.0.1` (loopback). The app has **no authentication** — do not bind to `0.0.0.0` on an untrusted network.
