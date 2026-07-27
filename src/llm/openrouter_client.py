@@ -6,6 +6,7 @@ import requests
 import src.config as config
 from src.llm.base_llm_client import BaseLLMClient
 from src.llm.error_messages import describe_http_status, describe_request_exception
+from src.llm.errors import OpenRouterChainExhausted, RECOVERABLE_LLM_ERRORS
 from src.llm.request_metadata import (
     categorize_exception,
     log_llm_request,
@@ -14,17 +15,6 @@ from src.llm.request_metadata import (
 )
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-
-# Failures that should trigger the fallback model (never include secrets in messages)
-_RECOVERABLE_ERRORS = (
-    requests.RequestException,
-    KeyError,
-    IndexError,
-    TypeError,
-    ValueError,
-    json.JSONDecodeError,
-    RuntimeError,  # includes clear HTTP failures raised by _call_model
-)
 
 EXTRACTION_SYSTEM_PROMPT = """You are a strict data extraction assistant.
 Extract structured fields from the job posting text the user provides.
@@ -60,7 +50,7 @@ Rules:
 
 
 class OpenRouterClient(BaseLLMClient):
-    """LLM client implementation for the OpenRouter API."""
+    """LLM client for the OpenRouter API (model chain only; no Ollama nesting)."""
 
     def _call_model(
         self,
@@ -204,10 +194,9 @@ class OpenRouterClient(BaseLLMClient):
         return "\n".join(lines).strip()
 
     def extract(self, posting_text: str) -> dict:
-        """Try OpenRouter model chain; on total failure, optionally fall back to Ollama.
+        """Try each configured OpenRouter model until one succeeds.
 
-        Used when LLM_PROVIDER_MODE=openrouter_ollama. For ollama_only, the factory
-        returns OllamaClient directly instead.
+        Ollama fallback is composed in OpenRouterWithOllamaFallback (factory), not here.
         """
         models = config.llm_model_chain()
         if not models:
@@ -223,80 +212,10 @@ class OpenRouterClient(BaseLLMClient):
                     fallback_used=index > 0,
                     attempt_index=index,
                 )
-            except _RECOVERABLE_ERRORS as err:
-                # #region agent log
-                try:
-                    import json as _agent_json
-                    from pathlib import Path as _AgentPath
-                    _agent_payload = {
-                        "sessionId": "2a8b08",
-                        "runId": "step10-verify",
-                        "hypothesisId": "A",
-                        "location": "openrouter_client.py:extract",
-                        "message": "recoverable_error_in_model_chain",
-                        "data": {
-                            "model": model_name,
-                            "index": index,
-                            "exc_type": type(err).__name__,
-                            "exc_msg": str(err)[:200],
-                        },
-                        "timestamp": __import__("time").time_ns() // 1_000_000,
-                    }
-                    with (_AgentPath(__file__).resolve().parents[2] / "debug-2a8b08.log").open(
-                        "a", encoding="utf-8"
-                    ) as _agent_f:
-                        _agent_f.write(_agent_json.dumps(_agent_payload) + "\n")
-                except OSError:
-                    pass
-                # #endregion
+            except RECOVERABLE_LLM_ERRORS as err:
                 last_error = err
                 errors.append(f"{model_name}: {err}")
                 continue
 
-        openrouter_detail = "; ".join(errors)
-
-        if config.OLLAMA_FALLBACK_ENABLED:
-            try:
-                from src.llm.ollama_client import OllamaClient
-
-                # #region agent log
-                try:
-                    import json as _agent_json
-                    from pathlib import Path as _AgentPath
-                    _agent_payload = {
-                        "sessionId": "2a8b08",
-                        "runId": "step10-verify",
-                        "hypothesisId": "B",
-                        "location": "openrouter_client.py:extract",
-                        "message": "calling_ollama_fallback",
-                        "data": {
-                            "attempt_index": len(models),
-                            "fallback_used": True,
-                            "openrouter_errors": len(errors),
-                        },
-                        "timestamp": __import__("time").time_ns() // 1_000_000,
-                    }
-                    with (_AgentPath(__file__).resolve().parents[2] / "debug-2a8b08.log").open(
-                        "a", encoding="utf-8"
-                    ) as _agent_f:
-                        _agent_f.write(_agent_json.dumps(_agent_payload) + "\n")
-                except OSError:
-                    pass
-                # #endregion
-                return OllamaClient().extract(
-                    posting_text,
-                    fallback_used=True,
-                    attempt_index=len(models),
-                )
-            except _RECOVERABLE_ERRORS as ollama_error:
-                last_error = ollama_error
-                raise RuntimeError(
-                    f"All OpenRouter models failed ({len(models)} tried), "
-                    f"and Ollama fallback also failed. "
-                    f"OpenRouter: {openrouter_detail}. "
-                    f"Ollama ({config.OLLAMA_MODEL}): {ollama_error}"
-                ) from ollama_error
-
-        raise RuntimeError(
-            f"All configured AI models failed ({len(models)} tried). {openrouter_detail}"
-        ) from last_error
+        detail = "; ".join(errors)
+        raise OpenRouterChainExhausted(detail, models_tried=len(models)) from last_error

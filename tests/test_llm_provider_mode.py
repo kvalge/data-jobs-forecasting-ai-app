@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.llm.fallback_client import OpenRouterWithOllamaFallback
 from src.llm.llm_client_factory import get_llm_client
 from src.llm.ollama_client import OllamaClient
 from src.llm.openrouter_client import OpenRouterClient
@@ -14,8 +15,12 @@ def test_factory_returns_openrouter_client_by_default(monkeypatch):
         "src.llm.llm_client_factory.config.LLM_PROVIDER_MODE",
         "openrouter_ollama",
     )
+    monkeypatch.setattr(
+        "src.llm.llm_client_factory.config.OLLAMA_FALLBACK_ENABLED",
+        True,
+    )
     client = get_llm_client()
-    assert isinstance(client, OpenRouterClient)
+    assert isinstance(client, OpenRouterWithOllamaFallback)
 
 
 def test_factory_returns_ollama_client_in_ollama_only_mode(monkeypatch):

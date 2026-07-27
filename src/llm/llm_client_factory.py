@@ -11,6 +11,7 @@ def get_llm_client() -> BaseLLMClient:
     """Return the active LLM client for the configured provider mode.
 
     - openrouter_ollama: OpenRouter model chain, then optional Ollama fallback
+      (composed in OpenRouterWithOllamaFallback when OLLAMA_FALLBACK_ENABLED)
     - ollama_only: local Ollama only (no OpenRouter key required)
     """
     mode = config.normalize_llm_provider_mode(config.LLM_PROVIDER_MODE)
@@ -19,6 +20,10 @@ def get_llm_client() -> BaseLLMClient:
 
         return OllamaClient()
 
+    from src.llm.fallback_client import OpenRouterWithOllamaFallback
     from src.llm.openrouter_client import OpenRouterClient
 
-    return OpenRouterClient()
+    primary = OpenRouterClient()
+    if config.OLLAMA_FALLBACK_ENABLED:
+        return OpenRouterWithOllamaFallback(primary)
+    return primary

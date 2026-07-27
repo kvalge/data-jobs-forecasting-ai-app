@@ -102,7 +102,8 @@ The planned functionalities have been implemented. Due to the small amount of re
    - `DATABASE_URL` is always required.
    - For `openrouter_ollama`: `OPENROUTER_API_KEY`, `MODEL`, and `FALLBACK_MODEL` are required (non-empty).
    - `FALLBACK_MODEL2` and `FALLBACK_MODEL3` are optional; when set, they are tried if earlier OpenRouter models fail or hit rate limits.
-   - After **all** OpenRouter models fail (e.g. free-tier limits), the app tries local **Ollama** when `OLLAMA_FALLBACK_ENABLED=true` (default). In `ollama_only` mode, Ollama is the only provider. Requires Ollama running (`ollama serve`). `OLLAMA_TIMEOUT_SECONDS` defaults to 180.
+   - After **all** OpenRouter models fail (e.g. free-tier limits), the app tries local **Ollama** when `OLLAMA_FALLBACK_ENABLED=true` (default). Fallback is composed in the LLM factory (`OpenRouterWithOllamaFallback`), not nested inside the OpenRouter client. In `ollama_only` mode, Ollama is the only provider. Requires Ollama running (`ollama serve`).
+   - Ollama calls use `think: false` (needed for qwen3.x so chain-of-thought does not blow past the timeout). Prefer `OLLAMA_TIMEOUT_SECONDS=180` (or higher) for larger local models; lower values often fail mid-generation.
    - `OLLAMA_BASE_URL` must be loopback by default (`127.0.0.1`, `localhost`, or `::1`) to avoid SSRF. Set `OLLAMA_ALLOW_REMOTE=true` only for a trusted remote Ollama.
    - `SECRET_KEY` is required for the Flask UI unless `FLASK_ENV=development` (known placeholders are rejected). Use a long random value for anything beyond trusted local use.
    - `FLASK_HOST` defaults to `127.0.0.1` (loopback). The app has **no authentication** — do not bind to `0.0.0.0` on an untrusted network.

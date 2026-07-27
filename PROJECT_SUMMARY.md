@@ -121,13 +121,14 @@ tests/                      # pytest suite
 | File | Role |
 |------|------|
 | `base_llm_client.py` | Abstract `extract(posting_text) -> dict` |
-| `openrouter_client.py` | Extraction via OpenRouter model chain; on total failure, optional Ollama |
-| `ollama_client.py` | Local Ollama `/api/chat` fallback (`format: json`, `think: false`, no redirects) |
+| `openrouter_client.py` | Extraction via OpenRouter model chain only (narrow recoverable errors) |
+| `fallback_client.py` | `OpenRouterWithOllamaFallback` — compose Ollama after OpenRouter exhaustion |
+| `ollama_client.py` | Local Ollama `/api/chat` (`format: json`, `think: false`, no redirects) |
 | `ollama_url.py` | `OLLAMA_BASE_URL` loopback allowlist (SSRF guard; remote opt-in) |
-| `translation.py` | Leftover OpenRouter label helper (not used on the ingest path) |
+| `errors.py` | `RECOVERABLE_LLM_ERRORS`, `OpenRouterChainExhausted` |
 | `error_messages.py` | User-facing messages for 429 / API key / timeout / Ollama / connection |
 | `request_metadata.py` | Privacy-safe NDJSON LLM request/validation metadata logger |
-| `llm_client_factory.py` | Returns OpenRouter or Ollama client from `LLM_PROVIDER_MODE` |
+| `llm_client_factory.py` | Mode + optional Ollama fallback composition from `LLM_PROVIDER_MODE` |
 
 ### Web (`src/web/`)
 
@@ -163,10 +164,10 @@ flowchart TD
     B --> C[posting_ingest.ingest_posting_text]
     C --> D[content_hash lookup]
     D -->|exists| E[Return existing entity]
-    D -->|new| F[OpenRouterClient.extract]
+    D -->|new| F[get_llm_client extract]
     F --> F1{OpenRouter chain OK?}
     F1 -->|yes| G[Pydantic DTO + domain validator]
-    F1 -->|no, Ollama enabled| F2[OllamaClient.extract]
+    F1 -->|no, Ollama enabled| F2[OllamaClient via OpenRouterWithOllamaFallback]
     F2 --> G
     G --> H[English from extract JSON + glossary]
     H --> I[JobPostingRepository.save]
@@ -222,7 +223,7 @@ raw posting text (str)
 | 1 | CLI / web route | Obtain UTF-8 posting text |
 | 2 | `ingest_posting_text` | Open `session_scope`, call extraction service |
 | 3 | `ExtractionService` | Hash lookup; skip LLM if duplicate |
-| 4 | `OpenRouterClient.extract` | OpenRouter model chain; then Ollama if all fail |
+| 4 | `get_llm_client().extract` | OpenRouter chain and/or Ollama via factory composition |
 | 5 | DTO + `validate_extraction_dto` | Schema + business rules |
 | 6 | Extract JSON + glossary | English role title and skills (no second LLM round-trip) |
 | 7 | Repository `save` | Insert posting; `get_or_create` skills; commit |

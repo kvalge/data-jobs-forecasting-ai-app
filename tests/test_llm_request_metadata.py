@@ -120,28 +120,30 @@ def test_fallback_activation_logs_fallback_used(meta_log, monkeypatch):
 
 def test_fallback_openrouter_to_ollama_logs(meta_log, monkeypatch):
     begin_extract_context(posting_chars=8, content_hash="zzzzzzzzzzzz")
-    client = OpenRouterClient()
+    primary = OpenRouterClient()
     monkeypatch.setattr(
         "src.llm.openrouter_client.config.llm_model_chain",
         lambda: ["model-a"],
     )
     monkeypatch.setattr(
-        "src.llm.openrouter_client.config.OLLAMA_FALLBACK_ENABLED", True
+        "src.llm.fallback_client.config.OLLAMA_FALLBACK_ENABLED", True
     )
     monkeypatch.setattr(
-        "src.llm.openrouter_client.config.OPENROUTER_API_KEY", "test-key"
+        "src.llm.fallback_client.config.OLLAMA_MODEL", "qwen3.5:latest"
     )
 
     def fail_openrouter(*args, **kwargs):
         raise RuntimeError("AI rate limit (HTTP 429)")
 
-    monkeypatch.setattr(client, "_call_model", fail_openrouter)
+    monkeypatch.setattr(primary, "_call_model", fail_openrouter)
 
     ollama = MagicMock()
     ollama.extract.return_value = {"role_title": "Local", "skills": []}
     monkeypatch.setattr("src.llm.ollama_client.OllamaClient", lambda: ollama)
 
-    result = client.extract("posting")
+    from src.llm.fallback_client import OpenRouterWithOllamaFallback
+
+    result = OpenRouterWithOllamaFallback(primary).extract("posting")
     assert result["role_title"] == "Local"
     ollama.extract.assert_called_once()
     assert ollama.extract.call_args.kwargs.get("fallback_used") is True
