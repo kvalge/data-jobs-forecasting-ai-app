@@ -42,10 +42,20 @@ class OpenRouterTranslator:
             return original
 
     def _translate_with_fallback(self, text: str) -> str:
-        try:
-            return self._call_translate(config.MODEL, text)
-        except _RECOVERABLE_ERRORS:
-            return self._call_translate(config.FALLBACK_MODEL, text)
+        models = config.llm_model_chain()
+        if not models:
+            raise ValueError("No LLM models configured")
+
+        last_error: BaseException | None = None
+        for model_name in models:
+            try:
+                return self._call_translate(model_name, text)
+            except _RECOVERABLE_ERRORS as err:
+                last_error = err
+                continue
+        raise RuntimeError(
+            f"All configured AI models failed for translation ({len(models)} tried)"
+        ) from last_error
 
     def _call_translate(self, model_name: str | None, text: str) -> str:
         if not model_name or not str(model_name).strip():

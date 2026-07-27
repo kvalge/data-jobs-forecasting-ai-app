@@ -131,14 +131,21 @@ class OpenRouterClient(BaseLLMClient):
         return "\n".join(lines).strip()
 
     def extract(self, posting_text: str) -> dict:
-        try:
-            return self._call_model(config.MODEL, posting_text)
-        except _RECOVERABLE_ERRORS as primary_error:
+        models = config.llm_model_chain()
+        if not models:
+            raise ValueError("No LLM models configured")
+
+        errors: list[str] = []
+        last_error: BaseException | None = None
+        for model_name in models:
             try:
-                return self._call_model(config.FALLBACK_MODEL, posting_text)
-            except _RECOVERABLE_ERRORS as fallback_error:
-                raise RuntimeError(
-                    f"Both primary and fallback AI models failed. "
-                    f"Primary ({config.MODEL}): {primary_error} "
-                    f"Fallback ({config.FALLBACK_MODEL}): {fallback_error}"
-                ) from fallback_error
+                return self._call_model(model_name, posting_text)
+            except _RECOVERABLE_ERRORS as err:
+                last_error = err
+                errors.append(f"{model_name}: {err}")
+                continue
+
+        detail = "; ".join(errors)
+        raise RuntimeError(
+            f"All configured AI models failed ({len(models)} tried). {detail}"
+        ) from last_error

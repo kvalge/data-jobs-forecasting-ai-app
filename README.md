@@ -82,11 +82,14 @@ The planned functionalities have been implemented. Due to the small amount of re
    DATABASE_URL=
    MODEL=
    FALLBACK_MODEL=
+   FALLBACK_MODEL2=
+   FALLBACK_MODEL3=
    SECRET_KEY=
    PREDICTION_DATA_SOURCE=fake
    ```
 
    - `OPENROUTER_API_KEY`, `DATABASE_URL`, `MODEL`, and `FALLBACK_MODEL` are required (non-empty).
+   - `FALLBACK_MODEL2` and `FALLBACK_MODEL3` are optional; when set, they are tried if the first two models fail or hit rate limits.
    - `SECRET_KEY` is used by the Flask UI for sessions/flash messages. Set a long random value for real use (a dev default is used only if unset).
    - `PREDICTION_DATA_SOURCE` is optional (`fake` default, or `database` when the live aggregator is implemented).
 

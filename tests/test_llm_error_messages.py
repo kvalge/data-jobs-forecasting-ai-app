@@ -29,13 +29,13 @@ def test_describe_timeout():
 
 def test_format_combined_429_for_ui():
     err = RuntimeError(
-        "Both primary and fallback AI models failed. "
-        "Primary (a): AI rate limit or free-tier quota reached for model 'a' (HTTP 429). "
-        "Fallback (b): AI rate limit or free-tier quota reached for model 'b' (HTTP 429)."
+        "All configured AI models failed (4 tried). "
+        "a: AI rate limit or free-tier quota reached for model 'a' (HTTP 429); "
+        "b: AI rate limit or free-tier quota reached for model 'b' (HTTP 429)."
     )
     message = format_llm_failure_for_user(err)
     assert "rate limit" in message.lower() or "free-tier" in message.lower()
-    assert "Both primary (nvidia" not in message
+    assert "FALLBACK_MODEL2" in message or "configured models" in message.lower()
 
 
 def test_describe_includes_provider_hint():

@@ -12,11 +12,15 @@ def restore_env():
     """Save and restore required env vars + config module globals after each test."""
     saved_environ = {name: os.environ.get(name) for name in config.REQUIRED_ENV_VARS}
     saved_environ["PREDICTION_DATA_SOURCE"] = os.environ.get("PREDICTION_DATA_SOURCE")
+    saved_environ["FALLBACK_MODEL2"] = os.environ.get("FALLBACK_MODEL2")
+    saved_environ["FALLBACK_MODEL3"] = os.environ.get("FALLBACK_MODEL3")
     saved_globals = {
         "OPENROUTER_API_KEY": config.OPENROUTER_API_KEY,
         "DATABASE_URL": config.DATABASE_URL,
         "MODEL": config.MODEL,
         "FALLBACK_MODEL": config.FALLBACK_MODEL,
+        "FALLBACK_MODEL2": config.FALLBACK_MODEL2,
+        "FALLBACK_MODEL3": config.FALLBACK_MODEL3,
         "PREDICTION_DATA_SOURCE": config.PREDICTION_DATA_SOURCE,
     }
     yield
@@ -29,4 +33,6 @@ def restore_env():
     config.DATABASE_URL = saved_globals["DATABASE_URL"]
     config.MODEL = saved_globals["MODEL"]
     config.FALLBACK_MODEL = saved_globals["FALLBACK_MODEL"]
+    config.FALLBACK_MODEL2 = saved_globals["FALLBACK_MODEL2"]
+    config.FALLBACK_MODEL3 = saved_globals["FALLBACK_MODEL3"]
     config.PREDICTION_DATA_SOURCE = saved_globals["PREDICTION_DATA_SOURCE"]

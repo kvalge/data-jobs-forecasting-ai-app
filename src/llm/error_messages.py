@@ -47,7 +47,7 @@ def describe_http_status(status: int | str, model_name: str, response: requests.
     if code == 404:
         return (
             f"AI model '{model_name}' was not found (HTTP 404). "
-            f"Check MODEL / FALLBACK_MODEL in .env.{suffix}"
+            f"Check MODEL / FALLBACK_MODEL / FALLBACK_MODEL2 / FALLBACK_MODEL3 in .env.{suffix}"
         )
     if code == 429:
         return (
@@ -89,8 +89,9 @@ def format_llm_failure_for_user(error: BaseException) -> str:
     # Prefer the most actionable signal in combined primary+fallback errors
     if "HTTP 429" in text or "rate limit" in text.lower() or "free-tier" in text.lower():
         return (
-            "AI rate limit or free-tier quota reached (both primary and fallback models). "
-            "Wait a few minutes and try again, or change MODEL / FALLBACK_MODEL in .env."
+            "AI rate limit or free-tier quota reached (all configured models). "
+            "Wait a few minutes and try again, or change MODEL / FALLBACK_MODEL / "
+            "FALLBACK_MODEL2 / FALLBACK_MODEL3 in .env."
         )
     if "HTTP 401" in text or "HTTP 403" in text or "API key" in text:
         return (
@@ -103,15 +104,13 @@ def format_llm_failure_for_user(error: BaseException) -> str:
         return "Could not connect to the AI service. Check your internet connection and try again."
     if "not found" in text.lower() and "HTTP 404" in text:
         return (
-            "One or both AI models were not found. "
-            "Check MODEL and FALLBACK_MODEL in your .env file."
+            "One or more AI models were not found. "
+            "Check MODEL / FALLBACK_MODEL / FALLBACK_MODEL2 / FALLBACK_MODEL3 in your .env file."
         )
     if "temporarily unavailable" in text.lower() or re.search(r"HTTP 50[0-4]", text):
         return "AI service is temporarily unavailable. Please try again later."
 
-    # Already user-friendly from describe_*; keep as-is but shorten double-failure prefix
-    if text.startswith("Both primary"):
-        return (
-            "AI extraction failed for both primary and fallback models. " + text
-        )
+    # Already user-friendly from describe_*; keep as-is but shorten multi-failure prefix
+    if text.startswith("Both primary") or text.startswith("All configured AI models failed"):
+        return "AI extraction failed for all configured models. " + text
     return text
