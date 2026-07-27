@@ -86,6 +86,9 @@ The planned functionalities have been implemented. Due to the small amount of re
    FALLBACK_MODEL2=
    FALLBACK_MODEL3=
    SECRET_KEY=
+   FLASK_ENV=development
+   FLASK_HOST=127.0.0.1
+   FLASK_DEBUG=false
    PREDICTION_DATA_SOURCE=fake
    OLLAMA_FALLBACK_ENABLED=true
    OLLAMA_BASE_URL=http://127.0.0.1:11434
@@ -96,7 +99,9 @@ The planned functionalities have been implemented. Due to the small amount of re
    - `OPENROUTER_API_KEY`, `DATABASE_URL`, `MODEL`, and `FALLBACK_MODEL` are required (non-empty).
    - `FALLBACK_MODEL2` and `FALLBACK_MODEL3` are optional; when set, they are tried if earlier OpenRouter models fail or hit rate limits.
    - After **all** OpenRouter models fail (e.g. free-tier limits), the app tries local **Ollama** (`OLLAMA_MODEL`, default `qwen3.5:latest`) via `/api/chat` with thinking disabled. Set `OLLAMA_FALLBACK_ENABLED=false` to disable. Requires Ollama running (`ollama serve`). `OLLAMA_TIMEOUT_SECONDS` defaults to 180 (raise if cold loads still time out).
-   - `SECRET_KEY` is used by the Flask UI for sessions/flash messages. Set a long random value for real use (a dev default is used only if unset).
+   - `SECRET_KEY` is required for the Flask UI unless `FLASK_ENV=development` (known placeholders are rejected). Use a long random value for anything beyond trusted local use.
+   - `FLASK_HOST` defaults to `127.0.0.1` (loopback). The app has **no authentication** — do not bind to `0.0.0.0` on an untrusted network.
+   - `FLASK_DEBUG` defaults to `false`. Only enable for local debugging; never expose the debugger remotely.
    - `PREDICTION_DATA_SOURCE` is optional (`fake` default, or `database` when the live aggregator is implemented).
    Example `DATABASE_URL` shape:
 
@@ -144,10 +149,9 @@ This creates ~10 000 postings over 36 months (8–12 skills each), plus day / 
 python -m src.web
 ```
 
-Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`).
+Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`). The server binds to **127.0.0.1** by default (`FLASK_HOST`) with the interactive debugger **off** (`FLASK_DEBUG=false`). There is no login — treat this as a local tool; do not expose it on a public interface without adding authentication.
 
-- Paste posting text and/or upload a `.txt` file, then **Extract and save**.
-- If a file is uploaded, it is used instead of the pasted text.
+- Paste posting text and/or upload a `.txt` file, then **Extract and save**.- If a file is uploaded, it is used instead of the pasted text.
 - After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and English skills.
 - Saving edits updates the database. If you correct a non-English → English translation on the review page, that pair is saved to `glossary/original_en.tsv` (English→English pairs are skipped; glossary is not filled on initial extract).
 - Open **Analysis** (`/analysis`) to query top companies, top English roles, salary min/avg/max (nulls excluded), and top English skills. Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).

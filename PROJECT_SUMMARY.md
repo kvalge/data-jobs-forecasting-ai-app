@@ -62,8 +62,9 @@ tests/                      # pytest suite
 |------|------|
 | `src/main.py` | CLI menu; posting ingest + prediction prompts |
 | `src/config.py` | Loads `.env`; `validate_config()`; `llm_model_chain()`; Ollama + `PREDICTION_DATA_SOURCE` |
-| `src/web/__main__.py` | Runs Flask app (`python -m src.web`) |
+| `src/web/__main__.py` | Runs Flask app (`python -m src.web`); loopback bind, debug from env |
 | `src/web/__init__.py` | `create_app()` — blueprints for postings, analysis, prediction |
+| `src/web/runtime.py` | `SECRET_KEY` policy, `FLASK_HOST` / `FLASK_DEBUG` helpers |
 
 ### Business logic (`src/bll/`)
 
