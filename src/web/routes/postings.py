@@ -4,6 +4,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.bll.glossary import add_entries, pairs_from_posting
+from src.bll.job_posting_validator import validate_review_fields
 from src.bll.posting_ingest import ingest_posting_text
 from src.dal.job_posting_repository import JobPostingRepository
 from src.dal.session import session_scope
@@ -117,40 +118,48 @@ def update_posting(posting_id: int):
             existing = repository.get_by_id(posting_id)
             if existing is None:
                 raise ValueError(f"Job posting not found: id={posting_id}")
-            # Keep original skill labels for glossary (UI only edits English skills).
-            original_skills = list(existing.skills or [])
 
-            updated = repository.update_review_fields(
-                posting_id,
+            original_skills = list(existing.skills or [])
+            validated = validate_review_fields(
                 company_name=_optional_str("company_name"),
                 role_title=role_title,
                 role_title_en=role_title_en,
                 salary_min=_optional_float("salary_min"),
                 salary_max=_optional_float("salary_max"),
                 work_type=work_type,
-                has_nondiscrimination_disclaimer=request.form.get("has_nondiscrimination_disclaimer") == "on",
+                has_nondiscrimination_disclaimer=(
+                    request.form.get("has_nondiscrimination_disclaimer") == "on"
+                ),
                 location=_optional_str("location"),
                 country=_optional_str("country"),
                 city=_optional_str("city"),
+                skills=original_skills,
                 skills_en=skills_en,
+                salary_currency=existing.salary_currency,
             )
 
-        # Only real translations (non-English original → English) from user review saves.
-        skill_originals = original_skills
-        if len(skill_originals) != len(skills_en):
-            # Skill list reshaped; only pair by index up to the shorter side.
-            n = min(len(skill_originals), len(skills_en))
-            skill_originals = skill_originals[:n]
-            skills_for_glossary = skills_en[:n]
-        else:
-            skills_for_glossary = skills_en
+            updated = repository.update_review_fields(
+                posting_id,
+                company_name=validated.company_name,
+                role_title=validated.role_title,
+                role_title_en=validated.role_title_en,
+                salary_min=validated.salary_min,
+                salary_max=validated.salary_max,
+                work_type=validated.work_type,
+                has_nondiscrimination_disclaimer=validated.has_nondiscrimination_disclaimer,
+                location=validated.location,
+                country=validated.country,
+                city=validated.city,
+                skills=validated.skills,
+                skills_en=validated.skills_en,
+            )
 
         added = add_entries(
             pairs_from_posting(
-                role_title,
-                role_title_en,
-                skill_originals,
-                skills_for_glossary,
+                validated.role_title,
+                validated.role_title_en,
+                validated.skills,
+                validated.skills_en,
             )
         )
         if added:

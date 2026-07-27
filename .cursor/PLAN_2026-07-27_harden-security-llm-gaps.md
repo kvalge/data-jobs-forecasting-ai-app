@@ -17,7 +17,7 @@
 | 1 | Web runtime hardening (debug, bind, SECRET_KEY) | Done (2026-07-27) |
 | 2 | Cap posting size before any LLM call | Done (2026-07-27) |
 | 3 | Allowlist `OLLAMA_BASE_URL` (SSRF guard) | Done (2026-07-27) |
-| 4 | Stricter post-LLM / review-path validation | Pending |
+| 4 | Stricter post-LLM / review-path validation | Done (2026-07-27) |
 | 5 | Sanitize glossary TSV writes + safer errors to UI | Pending |
 | 6 | CSRF + upload type checks + safer flash messages | Pending |
 | 7 | Transaction ownership (flush-only repos) | Pending |
@@ -203,3 +203,4 @@ After each completed step: update this table + notes below, propose a git commit
 - **2026-07-27 (Step 1):** Added `src/web/runtime.py` — `FLASK_DEBUG` default false, `FLASK_HOST` default `127.0.0.1`, strong `SECRET_KEY` required unless `FLASK_ENV=development` (placeholders rejected). `__main__.py` uses those helpers; `create_app(run_startup=True)` enforces the secret policy. Updated `.env.example`, README, PROJECT_SUMMARY; tests in `tests/test_web_runtime.py`.
 - **2026-07-27 (Step 2):** Added `MAX_POSTING_CHARS` (default 100000) in config; `ingest_posting_text` rejects oversized text before DB/LLM. Docs + `tests/test_posting_ingest.py`.
 - **2026-07-27 (Step 3):** Added `validate_ollama_base_url` (loopback-only by default; `OLLAMA_ALLOW_REMOTE` opt-in). Enforced in `validate_config` and Ollama client; `allow_redirects=False` on Ollama POST. Tests in `tests/test_ollama_url.py`.
+- **2026-07-27 (Step 4):** Tightened DTO bounds (lengths, salary ge/le, skill caps); reject mismatched `skills`/`skills_en`; currency normalize; `validate_review_fields` on review save; preserve original skill labels in `update_review_fields`; UI note that LLM values are untrusted.

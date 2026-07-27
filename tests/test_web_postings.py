@@ -173,14 +173,14 @@ def test_update_posting_saves_and_updates_glossary(client, monkeypatch):
         role_title_en="Senior Analyst",
         company_name="Acme",
         work_type=WorkType.hybrid,
-        skills=["Senior analysis"],
+        skills=["Python"],
         skills_en=["Senior analysis"],
         has_nondiscrimination_disclaimer=True,
         location="Tallinn",
         country="Estonia",
         city="Tallinn",
     )
-    repo = _patch_repo(monkeypatch, get_entity=updated, update_entity=updated)
+    repo = _patch_repo(monkeypatch, get_entity=entity, update_entity=updated)
 
     captured_pairs: list = []
     monkeypatch.setattr(
@@ -202,11 +202,14 @@ def test_update_posting_saves_and_updates_glossary(client, monkeypatch):
             "location": "Tallinn",
             "country": "Estonia",
             "city": "Tallinn",
-            "skills_en": "Senior analysis\nSQL",
+            "skills_en": "Senior analysis",
         },
         follow_redirects=True,
     )
     assert response.status_code == 200
     assert b"Posting updated" in response.data
     repo.update_review_fields.assert_called_once()
+    kwargs = repo.update_review_fields.call_args.kwargs
+    assert kwargs["skills"] == ["Python"]
+    assert kwargs["skills_en"] == ["Senior analysis"]
     assert ("Vanemanalüütik", "Senior Analyst") in captured_pairs

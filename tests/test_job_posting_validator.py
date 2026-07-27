@@ -1,8 +1,10 @@
 """Tests for domain validation after LLM schema checks."""
 
 import pytest
+from pydantic import ValidationError
 
-from src.bll.job_posting_validator import validate_extraction_dto
+from src.bll.job_posting_validator import validate_extraction_dto, validate_review_fields
+from src.domain.work_type import WorkType
 from src.dto.job_posting_extraction_dto import JobPostingExtractionDTO
 
 
@@ -23,6 +25,11 @@ def test_rejects_inverted_salary_range():
         validate_extraction_dto(dto)
 
 
+def test_rejects_negative_salary_at_schema():
+    with pytest.raises(ValidationError):
+        JobPostingExtractionDTO(role_title="Engineer", salary_min=-1.0, skills=[])
+
+
 def test_strips_role_and_drops_blank_skills():
     dto = JobPostingExtractionDTO(
         role_title="  Data Engineer ",
@@ -31,6 +38,37 @@ def test_strips_role_and_drops_blank_skills():
     result = validate_extraction_dto(dto)
     assert result.role_title == "Data Engineer"
     assert result.skills == ["Python", "SQL"]
+    assert result.skills_en == ["Python", "SQL"]
+
+
+def test_rejects_mismatched_skills_en_length():
+    dto = JobPostingExtractionDTO(
+        role_title="Engineer",
+        skills=["Python", "SQL"],
+        skills_en=["Python"],
+    )
+    with pytest.raises(ValueError, match="same length"):
+        validate_extraction_dto(dto)
+
+
+def test_rejects_bad_currency():
+    dto = JobPostingExtractionDTO(
+        role_title="Engineer",
+        salary_currency="euro",
+        skills=[],
+    )
+    with pytest.raises(ValueError, match="salary_currency"):
+        validate_extraction_dto(dto)
+
+
+def test_normalizes_currency():
+    dto = JobPostingExtractionDTO(
+        role_title="Engineer",
+        salary_currency=" eur ",
+        skills=[],
+    )
+    result = validate_extraction_dto(dto)
+    assert result.salary_currency == "EUR"
 
 
 def test_allows_salary_min_only():
@@ -38,3 +76,41 @@ def test_allows_salary_min_only():
     result = validate_extraction_dto(dto)
     assert result.salary_min == 3000.0
     assert result.salary_max is None
+
+
+def test_validate_review_fields_rejects_skill_count_mismatch():
+    with pytest.raises(ValueError, match="same length"):
+        validate_review_fields(
+            company_name="Acme",
+            role_title="Dev",
+            role_title_en="Dev",
+            salary_min=None,
+            salary_max=None,
+            work_type=WorkType.remote,
+            has_nondiscrimination_disclaimer=False,
+            location=None,
+            country=None,
+            city=None,
+            skills=["Python"],
+            skills_en=["Python", "SQL"],
+        )
+
+
+def test_validate_review_fields_accepts_aligned_skills():
+    result = validate_review_fields(
+        company_name="Acme",
+        role_title="Dev",
+        role_title_en="Developer",
+        salary_min=1000.0,
+        salary_max=2000.0,
+        work_type=WorkType.hybrid,
+        has_nondiscrimination_disclaimer=True,
+        location="Tallinn",
+        country="Estonia",
+        city="Tallinn",
+        skills=["püüton"],
+        skills_en=["Python"],
+    )
+    assert result.skills == ["püüton"]
+    assert result.skills_en == ["Python"]
+    assert result.role_title_en == "Developer"

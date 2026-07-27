@@ -114,12 +114,16 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         location: str | None,
         country: str | None,
         city: str | None,
+        skills: list[str],
         skills_en: list[str],
     ) -> JobPostingEntity:
-        """Update UI-editable fields and replace linked skills by English names."""
+        """Update UI-editable fields; keep original skill labels, refresh English."""
         orm_obj = self.session.get(JobPostingORM, entity_id)
         if orm_obj is None:
             raise ValueError(f"Job posting not found: id={entity_id}")
+
+        if len(skills) != len(skills_en):
+            raise ValueError("skills and skills_en must have the same length")
 
         role = role_title.strip()
         if not role:
@@ -139,11 +143,15 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         orm_obj.city = city.strip() if city and city.strip() else None
 
         orm_obj.skills.clear()
-        for skill_en in skills_en:
-            label = skill_en.strip()
-            if not label:
+        for original, english in zip(skills, skills_en):
+            original_label = (original or "").strip() or (english or "").strip()
+            english_label = (english or "").strip() or original_label
+            if not english_label:
                 continue
-            skill_orm = self.skill_repository.get_or_create(label, display_name_en=label)
+            skill_orm = self.skill_repository.get_or_create(
+                original_label,
+                display_name_en=english_label,
+            )
             orm_obj.skills.append(skill_orm)
 
         try:

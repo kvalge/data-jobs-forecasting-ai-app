@@ -6,9 +6,11 @@
 <section class="panel">
   <h2>Review saved posting <span class="muted">#{{ posting.id }}</span></h2>
   <p class="hint">
-    Edit extracted fields below, then save. If the posting was not in English and you
+    Values below were suggested by an LLM and should be treated as untrusted until you
+    review them. Edit fields, then save. If the posting was not in English and you
     correct a translation, the original → English pair is saved to
     <code>glossary/original_en.tsv</code> (English→English pairs are skipped).
+    Keep one English skill per original skill (same count / order).
   </p>
 
   <form method="post" action="{{ url_for('postings.update_posting', posting_id=posting.id) }}">
