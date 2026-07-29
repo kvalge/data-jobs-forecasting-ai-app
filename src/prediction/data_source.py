@@ -82,10 +82,9 @@ def get_data_source(kind: str | None = None, *, fake_dir: Path | None = None) ->
     if resolved in ("fake", "file", "fake_file"):
         return FakeFileSource(fake_dir or DEFAULT_FAKE_DIR)
     if resolved in ("database", "db"):
-        raise ValueError(
-            "PREDICTION_DATA_SOURCE=database is not implemented yet. "
-            "Use PREDICTION_DATA_SOURCE=fake until DatabaseSource aggregates exist."
-        )
+        from src.prediction.database_source import DatabaseSource
+
+        return DatabaseSource()
     raise ValueError(
-        f"Unknown PREDICTION_DATA_SOURCE={resolved!r}. Use 'fake' (database is not ready yet)."
+        f"Unknown PREDICTION_DATA_SOURCE={resolved!r}. Use 'fake' or 'database'."
     )

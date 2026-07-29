@@ -24,12 +24,18 @@ def _parse_int_list(name: str, allowed: tuple[int, ...]) -> list[int]:
     return values
 
 
-@prediction_bp.route("/prediction", methods=["GET", "POST"])
-def prediction_page():
+def _render_prediction_page(*, data_source: str):
+    """Shared fake / database prediction UI."""
     selected_models = list(DEFAULT_MODELS)
     selected_horizons = list(ALLOWED_HORIZONS)
     training_window = 24
     outcome = None
+    is_database = data_source == "database"
+    form_endpoint = (
+        "prediction.prediction_database_page"
+        if is_database
+        else "prediction.prediction_page"
+    )
 
     if request.method == "POST":
         selected_models = [
@@ -51,6 +57,7 @@ def prediction_page():
                     training_window_months=training_window,
                     horizons=selected_horizons,
                     models=selected_models,
+                    data_source=data_source,
                     persist=True,
                 )
                 flash(
@@ -80,6 +87,13 @@ def prediction_page():
 
     return render_template(
         "prediction.html",
+        data_source=data_source,
+        form_endpoint=form_endpoint,
+        page_heading=(
+            "Time series prediction (database)"
+            if is_database
+            else "Time series prediction (fake data)"
+        ),
         all_models=ALL_RUNNABLE,
         selected_models=selected_models,
         allowed_horizons=ALLOWED_HORIZONS,
@@ -91,3 +105,15 @@ def prediction_page():
         preview_results=preview_results,
         default_models=DEFAULT_MODELS,
     )
+
+
+@prediction_bp.route("/prediction", methods=["GET", "POST"])
+def prediction_page():
+    """Forecast using synthetic series under data/fake/."""
+    return _render_prediction_page(data_source="fake")
+
+
+@prediction_bp.route("/prediction/database", methods=["GET", "POST"])
+def prediction_database_page():
+    """Forecast using aggregates from saved job_postings in PostgreSQL."""
+    return _render_prediction_page(data_source="database")

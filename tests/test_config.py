@@ -88,11 +88,11 @@ def test_validate_config_rejects_bad_prediction_source():
 
 
 @pytest.mark.usefixtures("restore_env")
-def test_validate_config_rejects_database_source_until_implemented():
+def test_validate_config_allows_database_prediction_source():
     _set_all_required()
     os.environ["PREDICTION_DATA_SOURCE"] = "database"
-    with pytest.raises(EnvironmentError, match="not implemented"):
-        config.validate_config()
+    config.validate_config()
+    assert config.PREDICTION_DATA_SOURCE == "database"
 
 
 @pytest.mark.usefixtures("restore_env")

@@ -79,7 +79,7 @@ LLM_METADATA_LOG_PATH: str = (
     (os.getenv("LLM_METADATA_LOG_PATH") or "logs/llm_requests.ndjson").strip()
     or "logs/llm_requests.ndjson"
 )
-# Prediction series source: "fake" (data/fake CSVs) or "database" (future / quarantined).
+# Prediction series source: "fake" (data/fake CSVs) or "database" (live job_postings aggregates).
 PREDICTION_DATA_SOURCE: str = (os.getenv("PREDICTION_DATA_SOURCE") or "fake").strip() or "fake"
 
 
@@ -228,11 +228,6 @@ def validate_config() -> None:
         raise EnvironmentError(
             "PREDICTION_DATA_SOURCE must be 'fake' or 'database' "
             f"(got {PREDICTION_DATA_SOURCE!r})."
-        )
-    if PREDICTION_DATA_SOURCE == "database":
-        raise EnvironmentError(
-            "PREDICTION_DATA_SOURCE=database is not implemented yet. "
-            "Set PREDICTION_DATA_SOURCE=fake (default) to use data/fake/ series."
         )
 
     if LLM_PROVIDER_MODE == LLM_PROVIDER_MODE_OPENROUTER_OLLAMA:

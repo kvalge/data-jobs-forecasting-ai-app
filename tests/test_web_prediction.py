@@ -31,7 +31,22 @@ def test_get_prediction_page(client, monkeypatch):
 
     response = client.get("/prediction")
     assert response.status_code == 200
-    assert b"Time series prediction" in response.data
+    assert b"Time series prediction (fake data)" in response.data
+    assert b'name="training_window"' in response.data
+    assert b"/prediction/database" in response.data
+
+
+def test_get_prediction_database_page(client, monkeypatch):
+    monkeypatch.setattr(
+        prediction_routes,
+        "load_forecast_history",
+        lambda **kwargs: ForecastHistory(recent_runs=[], preview_results=[]),
+    )
+
+    response = client.get("/prediction/database")
+    assert response.status_code == 200
+    assert b"Time series prediction (database)" in response.data
+    assert b"saved job postings" in response.data
     assert b'name="training_window"' in response.data
 
 
@@ -76,3 +91,47 @@ def test_post_prediction_runs_service(client, monkeypatch):
     assert b"historical" in response.data.lower() or b"Historical" in response.data
     assert b"Fake" in response.data or b"fake" in response.data
     runner.assert_called_once()
+    assert runner.call_args.kwargs["data_source"] == "fake"
+
+
+def test_post_prediction_database_runs_service(client, monkeypatch):
+    monkeypatch.setattr(
+        prediction_routes,
+        "load_forecast_history",
+        lambda **kwargs: ForecastHistory(recent_runs=[], preview_results=[]),
+    )
+
+    outcome = PredictionRunOutcome(
+        run_id=9,
+        status="completed",
+        summary={
+            "n_results": 4,
+            "models": ["baseline"],
+            "horizons": [3],
+            "training_window_months": 12,
+            "elapsed_seconds": 0.2,
+            "model_timings_seconds": {"baseline": 0.2},
+            "data_source": "database",
+            "error_count": 0,
+            "roles": ["Data Engineer"],
+            "skills": ["Python"],
+        },
+        errors={},
+    )
+    runner = MagicMock(return_value=outcome)
+    monkeypatch.setattr(prediction_routes, "run_prediction", runner)
+
+    response = client.post(
+        "/prediction/database",
+        data={
+            "training_window": "12",
+            "horizon": "3",
+            "model_baseline": "on",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Prediction run #9" in response.data
+    assert b"database" in response.data.lower()
+    runner.assert_called_once()
+    assert runner.call_args.kwargs["data_source"] == "database"

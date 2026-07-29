@@ -1,17 +1,24 @@
 {% extends "base.html" %}
 
-{% block title %}Prediction — Job Market Analyzer{% endblock %}
+{% block title %}{{ page_heading }} — Job Market Analyzer{% endblock %}
 
 {% block content %}
 <section class="panel">
-  <h2>Time series prediction</h2>
+  <h2>{{ page_heading }}</h2>
   <p class="hint">
     Forecast popular roles, skills, and average salary per role for the next 3 / 6 / 12 months.
-    Training data currently comes from <code>data/fake/</code> (switch later via
-    <code>PREDICTION_DATA_SOURCE</code>). Results are stored in the database.
+    {% if data_source == 'database' %}
+    Training data is aggregated from <strong>saved job postings</strong> in PostgreSQL
+    (by <code>date_added</code>). Sparse history may limit model quality until more postings exist.
+    {% else %}
+    Training data comes from synthetic series under <code>data/fake/</code>.
+    Use <a href="{{ url_for('prediction.prediction_database_page') }}">Prediction (database)</a>
+    to forecast from real postings instead.
+    {% endif %}
+    Results are stored in the database.
   </p>
 
-  <form method="post" action="{{ url_for('prediction.prediction_page') }}">
+  <form method="post" action="{{ url_for(form_endpoint) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
       <label for="training_window">Training window (months)</label>
@@ -47,6 +54,11 @@
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Run prediction</button>
       <a class="btn btn-secondary" href="{{ url_for('analysis.analysis_page') }}">Descriptive analysis</a>
+      {% if data_source == 'database' %}
+      <a class="btn btn-secondary" href="{{ url_for('prediction.prediction_page') }}">Fake prediction</a>
+      {% else %}
+      <a class="btn btn-secondary" href="{{ url_for('prediction.prediction_database_page') }}">Database prediction</a>
+      {% endif %}
     </div>
   </form>
 </section>

@@ -66,8 +66,8 @@ def export_model_results_markdown(
             "Models were trained on generated job-market aggregates "
             "(not live PostgreSQL postings). Regenerate with "
             "`python scripts/generate_fake_job_market.py`. "
-            "Switch later with `PREDICTION_DATA_SOURCE=database` when "
-            "`DatabaseSource` is implemented."
+            "Use the **Prediction (database)** UI tab or "
+            "`PREDICTION_DATA_SOURCE=database` for live posting aggregates."
         )
     elif data_source == "database":
         data_source_label = "Real database aggregates (PostgreSQL `job_postings` / skills)"

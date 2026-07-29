@@ -121,7 +121,7 @@ The planned functionalities have been implemented. Due to the small amount of re
    - `FLASK_DEBUG` defaults to `false`. Only enable for local debugging; never expose the debugger remotely.
    - `MAX_POSTING_CHARS` caps posting text before any LLM call (default `100000`). Oversized paste/upload is rejected early (stricter than the 1 MB upload byte limit).
    - `LLM_METADATA_LOG_ENABLED` / `LLM_METADATA_LOG_PATH` write privacy-safe NDJSON metadata per LLM attempt (provider, model, status, timing, tokens if available, fallback flag, validation result). Prompts and responses are never logged. Default path: `logs/llm_requests.ndjson`.
-   - `PREDICTION_DATA_SOURCE` is optional (`fake` default). `database` is reserved but **rejected at startup** until `DatabaseSource` is implemented.
+   - `PREDICTION_DATA_SOURCE` is optional (`fake` default). Set `database` for CLI prediction against live PostgreSQL aggregates (the web UI also has a separate **Prediction (database)** tab).
    Example `DATABASE_URL` shape:
 
    ```
@@ -169,13 +169,13 @@ python -m src.main
 
 ## Fake data for prediction
 
-Prediction currently trains on synthetic market series under `data/fake/` (gitignored with the rest of `data/`). Generate or refresh with:
+The **Prediction (fake)** UI tab and default CLI source train on synthetic market series under `data/fake/` (gitignored with the rest of `data/`). Generate or refresh with:
 
 ```bash
 python scripts/generate_fake_job_market.py
 ```
 
-This creates ~10 000 postings over 36 months (8–12 skills each), plus day / week / month aggregates for roles, skills, and totals. Live DB aggregates (`PREDICTION_DATA_SOURCE=database`) are not available yet — keep `fake` until `DatabaseSource` is implemented.
+This creates ~10 000 postings over 36 months (8–12 skills each), plus day / week / month aggregates for roles, skills, and totals. For forecasts on real saved postings, use **Prediction (database)** (`/prediction/database`) or set `PREDICTION_DATA_SOURCE=database`.
 
 ## Run — Web UI
 
@@ -191,7 +191,7 @@ Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`). Th
 - After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and English skills.
 - Saving edits updates the database. If you correct a non-English → English translation on the review page, that pair is saved to `glossary/original_en.tsv` (English→English pairs are skipped; glossary is not filled on initial extract).
 - Open **Analysis** (`/analysis`) to query top companies, top English roles, salary min/avg/max (nulls excluded), and top English skills. Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).
-- Open **Prediction** (`/prediction`) to run baseline trend analysis and classical/ML forecasts for popular roles, skills, and average salary per role. Default model selection is `baseline`, `prophet`, and `arima`; choose more (or all) explicitly. Outcomes are stored in PostgreSQL. The “Top roles / Top skills” lines on the results page are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
+- Open **Prediction (fake)** (`/prediction`) for forecasts on `data/fake/` series, or **Prediction (database)** (`/prediction/database`) for the same models on aggregates from saved job postings. Default model selection is `baseline`, `prophet`, and `arima`; choose more (or all) explicitly. Outcomes are stored in PostgreSQL. The “Top roles / Top skills” lines on the results page are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
 - Success, duplicate, and error messages appear as flash banners.
 - The CLI remains fully functional alongside the web UI.
 
