@@ -47,6 +47,10 @@ def test_successful_openrouter_call_logs_metadata(meta_log, monkeypatch):
     monkeypatch.setattr(
         "src.llm.openrouter_client.config.OPENROUTER_API_KEY", "test-key"
     )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_TIMEOUT_SECONDS", 60
+    )
+    monkeypatch.setattr("src.llm.openrouter_client.config.LLM_MAX_TOKENS", 2048)
 
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
@@ -54,13 +58,16 @@ def test_successful_openrouter_call_logs_metadata(meta_log, monkeypatch):
         "choices": [{"message": {"content": '{"role_title": "Dev", "skills": [], "skills_en": []}'}}],
         "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
     }
+    post = MagicMock(return_value=mock_response)
     monkeypatch.setattr(
         "src.llm.openrouter_client.requests.post",
-        MagicMock(return_value=mock_response),
+        post,
     )
 
     result = client._call_model("model-a", "hello posting")
     assert result["role_title"] == "Dev"
+    assert post.call_args.kwargs["timeout"] == 60
+    assert post.call_args.kwargs["json"]["max_tokens"] == 2048
 
     records = _read_records(meta_log)
     assert len(records) == 1

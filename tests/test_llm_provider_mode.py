@@ -43,6 +43,8 @@ def test_ollama_only_extract_does_not_call_openrouter(monkeypatch):
     )
     monkeypatch.setattr("src.llm.ollama_client.config.OLLAMA_ALLOW_REMOTE", False)
     monkeypatch.setattr("src.llm.ollama_client.config.OLLAMA_TIMEOUT_SECONDS", 30)
+    monkeypatch.setattr("src.llm.ollama_client.config.OLLAMA_KEEP_ALIVE", "10m")
+    monkeypatch.setattr("src.llm.ollama_client.config.LLM_MAX_TOKENS", 2048)
     monkeypatch.setattr(
         "src.llm.ollama_client.config.LLM_PROVIDER_MODE", "ollama_only"
     )

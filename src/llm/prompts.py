@@ -3,14 +3,14 @@
 
 EXTRACTION_SYSTEM_PROMPT = """You are a strict data extraction assistant.
 Extract structured fields from the job posting text the user provides.
-Respond with ONLY a valid JSON object matching EXACTLY this schema — no extra text, no markdown formatting.
+Respond with ONLY a valid JSON object matching EXACTLY this schema — no extra text, no markdown, no chain-of-thought.
 
 {
   "company_name": string or null,
   "role_title": string (required — the job title as written in the posting),
   "role_title_en": string (required — English form of the job title; same as role_title if already English),
-  "responsibilities": string or null (combine into a single text block, not a list),
-  "requirements": string or null (combine into a single text block, not a list),
+  "responsibilities": string or null,
+  "requirements": string or null,
   "application_deadline": string in YYYY-MM-DD format or null,
   "salary_min": number or null,
   "salary_max": number or null,
@@ -26,7 +26,8 @@ Respond with ONLY a valid JSON object matching EXACTLY this schema — no extra 
 
 Rules:
 - Use exactly these field names — do not rename or omit any field.
-- "responsibilities" and "requirements" must be single strings, not arrays — if the posting lists them as bullet points, join them into one text block separated by newlines or semicolons.
+- Be concise: keep "responsibilities" and "requirements" under ~500 characters each (join bullets with "; ").
+- Prefer short skill tokens (e.g. "Python", "SQL"); do not write paragraphs in skills.
 - "skills_en" must have the same number of items as "skills", in the same order.
 - Only extract information that is explicitly stated in the posting text.
 - Never guess, infer, or make up any value that is not clearly present in the text (except translating role_title / skills into English when they are not English).

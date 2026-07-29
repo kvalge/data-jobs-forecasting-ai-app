@@ -110,6 +110,28 @@ def test_validate_config_ollama_only_skips_openrouter_vars():
 
 
 @pytest.mark.usefixtures("restore_env")
+def test_validate_config_loads_latency_settings():
+    _set_all_required()
+    os.environ["OPENROUTER_TIMEOUT_SECONDS"] = "45"
+    os.environ["LLM_MAX_TOKENS"] = "1024"
+    os.environ["OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT"] = "false"
+    os.environ["OLLAMA_KEEP_ALIVE"] = "30m"
+    config.validate_config()
+    assert config.OPENROUTER_TIMEOUT_SECONDS == 45
+    assert config.LLM_MAX_TOKENS == 1024
+    assert config.OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT is False
+    assert config.OLLAMA_KEEP_ALIVE == "30m"
+
+
+@pytest.mark.usefixtures("restore_env")
+def test_validate_config_rejects_low_max_tokens():
+    _set_all_required()
+    os.environ["LLM_MAX_TOKENS"] = "10"
+    with pytest.raises(EnvironmentError, match="LLM_MAX_TOKENS"):
+        config.validate_config()
+
+
+@pytest.mark.usefixtures("restore_env")
 def test_validate_config_rejects_unknown_provider_mode():
     _set_all_required(LLM_PROVIDER_MODE="bedrock")
     with pytest.raises(EnvironmentError, match="LLM_PROVIDER_MODE"):

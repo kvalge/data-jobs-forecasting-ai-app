@@ -36,6 +36,10 @@ def test_extract_uses_fallback_only_after_failure(client, monkeypatch):
         "src.llm.openrouter_client.config.llm_model_chain",
         lambda: ["model-a", "model-b", "model-c"],
     )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT",
+        False,
+    )
     calls: list[str] = []
 
     def fake_call(model_name, posting_text, *, fallback_used=False, attempt_index=0):
@@ -76,6 +80,10 @@ def test_extract_falls_back_to_ollama_after_openrouter_exhausted(monkeypatch):
         "src.llm.openrouter_client.config.llm_model_chain",
         lambda: ["model-a", "model-b"],
     )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT",
+        False,
+    )
     monkeypatch.setattr("src.llm.fallback_client.config.OLLAMA_FALLBACK_ENABLED", True)
     monkeypatch.setattr("src.llm.fallback_client.config.OLLAMA_MODEL", "qwen3.5:latest")
 
@@ -97,6 +105,38 @@ def test_extract_falls_back_to_ollama_after_openrouter_exhausted(monkeypatch):
     )
 
 
+def test_rate_limit_shortcircuit_skips_remaining_openrouter_models(monkeypatch):
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.llm_model_chain",
+        lambda: ["model-a", "model-b", "model-c"],
+    )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT",
+        True,
+    )
+    monkeypatch.setattr("src.llm.fallback_client.config.OLLAMA_FALLBACK_ENABLED", True)
+
+    primary = OpenRouterClient()
+    calls: list[str] = []
+
+    def fake_call(model_name, posting_text, *, fallback_used=False, attempt_index=0):
+        calls.append(model_name)
+        raise RuntimeError(f"AI rate limit for model '{model_name}' (HTTP 429)")
+
+    monkeypatch.setattr(primary, "_call_model", fake_call)
+
+    ollama = MagicMock()
+    ollama.extract.return_value = {"role_title": "Local", "skills": []}
+    monkeypatch.setattr("src.llm.ollama_client.OllamaClient", lambda: ollama)
+
+    result = OpenRouterWithOllamaFallback(primary).extract("posting")
+    assert result["role_title"] == "Local"
+    assert calls == ["model-a"]
+    ollama.extract.assert_called_once_with(
+        "posting", fallback_used=True, attempt_index=1
+    )
+
+
 def test_extract_skips_ollama_when_disabled(client, monkeypatch):
     monkeypatch.setattr(
         "src.llm.openrouter_client.config.llm_model_chain",
@@ -111,6 +151,49 @@ def test_extract_skips_ollama_when_disabled(client, monkeypatch):
 
     with pytest.raises(OpenRouterChainExhausted, match="All configured AI models failed"):
         client.extract("posting")
+
+
+def test_schema_validation_failure_rotates_to_next_model(client, monkeypatch):
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.llm_model_chain",
+        lambda: ["model-a", "model-b"],
+    )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_API_KEY", "test-key"
+    )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_TIMEOUT_SECONDS", 60
+    )
+    monkeypatch.setattr("src.llm.openrouter_client.config.LLM_MAX_TOKENS", 2048)
+
+    responses = [
+        {
+            "choices": [{"message": {"content": '{"": {}}'}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        },
+        {
+            "choices": [
+                {
+                    "message": {
+                        "content": '{"role_title": "Analyst", "skills": [], "skills_en": []}'
+                    }
+                }
+            ],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 5, "total_tokens": 6},
+        },
+    ]
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json.side_effect = responses
+    post = MagicMock(return_value=mock_response)
+    monkeypatch.setattr("src.llm.openrouter_client.requests.post", post)
+
+    result = client.extract("posting")
+    assert result["role_title"] == "Analyst"
+    assert post.call_count == 2
+    payload = post.call_args_list[0].kwargs["json"]
+    assert payload["max_tokens"] == 2048
+    assert post.call_args_list[0].kwargs["timeout"] == 60
 
 
 def test_factory_composes_ollama_fallback_when_enabled(monkeypatch):

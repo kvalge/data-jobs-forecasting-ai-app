@@ -7,6 +7,7 @@ import src.config as config
 from src.llm.base_llm_client import BaseLLMClient
 from src.llm.error_messages import describe_http_status, describe_request_exception
 from src.llm.errors import OpenRouterChainExhausted, RECOVERABLE_LLM_ERRORS
+from src.llm.extract_validate import assert_extraction_usable
 from src.llm.prompts import EXTRACTION_SYSTEM_PROMPT
 from src.llm.request_metadata import (
     categorize_exception,
@@ -20,6 +21,10 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Re-export for callers that historically imported from this module.
 __all__ = ["OPENROUTER_URL", "EXTRACTION_SYSTEM_PROMPT", "OpenRouterClient"]
+
+
+def _is_rate_limit_error(err: BaseException) -> bool:
+    return categorize_exception(err) == "rate_limit"
 
 
 class OpenRouterClient(BaseLLMClient):
@@ -40,6 +45,8 @@ class OpenRouterClient(BaseLLMClient):
             "Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
         }
+        max_tokens = int(getattr(config, "LLM_MAX_TOKENS", 2048) or 2048)
+        timeout = int(getattr(config, "OPENROUTER_TIMEOUT_SECONDS", 60) or 60)
         payload = {
             "model": model_name,
             "messages": [
@@ -47,12 +54,13 @@ class OpenRouterClient(BaseLLMClient):
                 {"role": "user", "content": posting_text},
             ],
             "response_format": {"type": "json_object"},
+            "max_tokens": max_tokens,
         }
 
         with timed_llm_call() as timer:
             try:
                 response = requests.post(
-                    OPENROUTER_URL, headers=headers, json=payload, timeout=30
+                    OPENROUTER_URL, headers=headers, json=payload, timeout=timeout
                 )
                 response.raise_for_status()
             except requests.HTTPError as e:
@@ -100,6 +108,7 @@ class OpenRouterClient(BaseLLMClient):
 
             try:
                 parsed = parse_message_content(data, model_name)
+                parsed = assert_extraction_usable(parsed)
             except Exception as e:
                 log_llm_request(
                     provider="openrouter",
@@ -133,9 +142,14 @@ class OpenRouterClient(BaseLLMClient):
         if not models:
             raise ValueError("No LLM models configured")
 
+        shortcircuit = bool(
+            getattr(config, "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT", True)
+        )
         errors: list[str] = []
         last_error: BaseException | None = None
+        models_attempted = 0
         for index, model_name in enumerate(models):
+            models_attempted = index + 1
             try:
                 return self._call_model(
                     model_name,
@@ -146,7 +160,14 @@ class OpenRouterClient(BaseLLMClient):
             except RECOVERABLE_LLM_ERRORS as err:
                 last_error = err
                 errors.append(f"{model_name}: {err}")
+                if shortcircuit and _is_rate_limit_error(err):
+                    # Shared free-tier quota: further OpenRouter models usually 429 too.
+                    for skipped_name in models[index + 1 :]:
+                        errors.append(f"{skipped_name}: skipped after rate limit")
+                    break
                 continue
 
         detail = "; ".join(errors)
-        raise OpenRouterChainExhausted(detail, models_tried=len(models)) from last_error
+        raise OpenRouterChainExhausted(
+            detail, models_tried=models_attempted
+        ) from last_error

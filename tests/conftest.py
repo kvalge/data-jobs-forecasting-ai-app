@@ -43,6 +43,12 @@ def restore_env():
             "OLLAMA_MODEL",
             "OLLAMA_BASE_URL",
             "OLLAMA_ALLOW_REMOTE",
+            "OLLAMA_TIMEOUT_SECONDS",
+            "OLLAMA_KEEP_ALIVE",
+            "OPENROUTER_TIMEOUT_SECONDS",
+            "LLM_MAX_TOKENS",
+            "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT",
+            "MAX_POSTING_CHARS",
         )
     }
     saved_globals = {
@@ -56,6 +62,13 @@ def restore_env():
         "PREDICTION_DATA_SOURCE": config.PREDICTION_DATA_SOURCE,
         "OLLAMA_MODEL": config.OLLAMA_MODEL,
         "OLLAMA_BASE_URL": config.OLLAMA_BASE_URL,
+        "OLLAMA_TIMEOUT_SECONDS": config.OLLAMA_TIMEOUT_SECONDS,
+        "OLLAMA_KEEP_ALIVE": getattr(config, "OLLAMA_KEEP_ALIVE", "10m"),
+        "OPENROUTER_TIMEOUT_SECONDS": getattr(config, "OPENROUTER_TIMEOUT_SECONDS", 60),
+        "LLM_MAX_TOKENS": getattr(config, "LLM_MAX_TOKENS", 2048),
+        "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT": getattr(
+            config, "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT", True
+        ),
     }
     yield
     for name, value in saved_environ.items():
@@ -73,3 +86,10 @@ def restore_env():
     config.PREDICTION_DATA_SOURCE = saved_globals["PREDICTION_DATA_SOURCE"]
     config.OLLAMA_MODEL = saved_globals["OLLAMA_MODEL"]
     config.OLLAMA_BASE_URL = saved_globals["OLLAMA_BASE_URL"]
+    config.OLLAMA_TIMEOUT_SECONDS = saved_globals["OLLAMA_TIMEOUT_SECONDS"]
+    config.OLLAMA_KEEP_ALIVE = saved_globals["OLLAMA_KEEP_ALIVE"]
+    config.OPENROUTER_TIMEOUT_SECONDS = saved_globals["OPENROUTER_TIMEOUT_SECONDS"]
+    config.LLM_MAX_TOKENS = saved_globals["LLM_MAX_TOKENS"]
+    config.OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT = saved_globals[
+        "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT"
+    ]

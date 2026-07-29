@@ -53,6 +53,16 @@ OLLAMA_BASE_URL: str = (os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434"
 OLLAMA_MODEL: str = (os.getenv("OLLAMA_MODEL") or "qwen3.5:latest").strip()
 OLLAMA_TIMEOUT_SECONDS: int = _env_int_soft("OLLAMA_TIMEOUT_SECONDS", "180")
 OLLAMA_ALLOW_REMOTE: bool = _env_bool("OLLAMA_ALLOW_REMOTE", "false")
+# Keep model loaded after each call (Ollama keep_alive), e.g. "10m", "0", "-1".
+OLLAMA_KEEP_ALIVE: str = (os.getenv("OLLAMA_KEEP_ALIVE") or "10m").strip() or "10m"
+# OpenRouter HTTP timeout (fail-fast so a stuck primary does not burn minutes).
+OPENROUTER_TIMEOUT_SECONDS: int = _env_int_soft("OPENROUTER_TIMEOUT_SECONDS", "60")
+# Cap completion size for OpenRouter max_tokens and Ollama num_predict.
+LLM_MAX_TOKENS: int = _env_int_soft("LLM_MAX_TOKENS", "2048")
+# After an OpenRouter free-tier/429, skip remaining OpenRouter models and go to Ollama.
+OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT: bool = _env_bool(
+    "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT", "true"
+)
 # Max characters of posting text sent to any LLM (CLI + web). Default 100_000.
 MAX_POSTING_CHARS: int = _env_int_soft("MAX_POSTING_CHARS", "100000")
 # Privacy-safe LLM request metadata (NDJSON). Default on.
@@ -104,7 +114,9 @@ def validate_config() -> None:
     global OPENROUTER_API_KEY, DATABASE_URL, MODEL, FALLBACK_MODEL
     global FALLBACK_MODEL2, FALLBACK_MODEL3, PREDICTION_DATA_SOURCE, LLM_PROVIDER_MODE
     global OLLAMA_FALLBACK_ENABLED, OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT_SECONDS
-    global OLLAMA_ALLOW_REMOTE, MAX_POSTING_CHARS
+    global OLLAMA_ALLOW_REMOTE, OLLAMA_KEEP_ALIVE, MAX_POSTING_CHARS
+    global OPENROUTER_TIMEOUT_SECONDS, LLM_MAX_TOKENS
+    global OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT
     global LLM_METADATA_LOG_ENABLED, LLM_METADATA_LOG_PATH
 
     LLM_PROVIDER_MODE = normalize_llm_provider_mode(os.getenv("LLM_PROVIDER_MODE"))
@@ -159,6 +171,25 @@ def validate_config() -> None:
         raise EnvironmentError("OLLAMA_TIMEOUT_SECONDS must be an integer.") from e
     if OLLAMA_TIMEOUT_SECONDS < 1:
         raise EnvironmentError("OLLAMA_TIMEOUT_SECONDS must be >= 1.")
+    OLLAMA_KEEP_ALIVE = (os.getenv("OLLAMA_KEEP_ALIVE") or "10m").strip() or "10m"
+    try:
+        OPENROUTER_TIMEOUT_SECONDS = int(
+            (os.getenv("OPENROUTER_TIMEOUT_SECONDS") or "60").strip() or "60"
+        )
+    except ValueError as e:
+        raise EnvironmentError("OPENROUTER_TIMEOUT_SECONDS must be an integer.") from e
+    if OPENROUTER_TIMEOUT_SECONDS < 1:
+        raise EnvironmentError("OPENROUTER_TIMEOUT_SECONDS must be >= 1.")
+    try:
+        LLM_MAX_TOKENS = int((os.getenv("LLM_MAX_TOKENS") or "2048").strip() or "2048")
+    except ValueError as e:
+        raise EnvironmentError("LLM_MAX_TOKENS must be an integer.") from e
+    if LLM_MAX_TOKENS < 64:
+        raise EnvironmentError("LLM_MAX_TOKENS must be >= 64.")
+    OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT = (
+        (os.getenv("OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT") or "true").strip().lower()
+        in ("1", "true", "yes", "on")
+    )
     try:
         MAX_POSTING_CHARS = int(
             (os.getenv("MAX_POSTING_CHARS") or "100000").strip() or "100000"

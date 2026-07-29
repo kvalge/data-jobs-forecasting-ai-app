@@ -92,19 +92,28 @@ The planned functionalities have been implemented. Due to the small amount of re
    FLASK_HOST=127.0.0.1
    FLASK_DEBUG=false
    MAX_POSTING_CHARS=100000
+   OPENROUTER_TIMEOUT_SECONDS=60
+   LLM_MAX_TOKENS=2048
+   OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT=true
    PREDICTION_DATA_SOURCE=fake
    OLLAMA_FALLBACK_ENABLED=true
    OLLAMA_BASE_URL=http://127.0.0.1:11434
    OLLAMA_MODEL=qwen3.5:latest
    OLLAMA_TIMEOUT_SECONDS=180
+   OLLAMA_KEEP_ALIVE=10m
    ```
 
    - `LLM_PROVIDER_MODE`: `openrouter_ollama` (default) tries OpenRouter models then optional Ollama; `ollama_only` uses local Ollama only (no OpenRouter API key required).
    - `DATABASE_URL` is always required.
    - For `openrouter_ollama`: `OPENROUTER_API_KEY`, `MODEL`, and `FALLBACK_MODEL` are required (non-empty).
-   - `FALLBACK_MODEL2` and `FALLBACK_MODEL3` are optional; when set, they are tried if earlier OpenRouter models fail or hit rate limits.
-   - After **all** OpenRouter models fail (e.g. free-tier limits), the app tries local **Ollama** when `OLLAMA_FALLBACK_ENABLED=true` (default). Fallback is composed in the LLM factory (`OpenRouterWithOllamaFallback`), not nested inside the OpenRouter client. In `ollama_only` mode, Ollama is the only provider. Requires Ollama running (`ollama serve`).
+   - **Latency-oriented model chain (free tier):** put the **fastest/smallest** model first (e.g. a “nano” free model), then a mid-size fallback. Prefer **2–3** OpenRouter models over 4 when they share free-tier quota; demote or drop models that often hang then fail. Example order: nano → super → (optional) larger last. Do not put a huge “ultra” model first unless you accept multi-minute waits on failure.
+   - `FALLBACK_MODEL2` and `FALLBACK_MODEL3` are optional; when set, they are tried if earlier OpenRouter models fail (unless rate-limit short-circuit applies).
+   - `OPENROUTER_TIMEOUT_SECONDS` (default `60`) fail-fasts a stuck OpenRouter call so the next model / Ollama can run.
+   - `LLM_MAX_TOKENS` (default `2048`) caps OpenRouter `max_tokens` and Ollama `num_predict` to avoid runaway completions.
+   - `OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT` (default `true`): after an OpenRouter HTTP 429 / free-tier limit, skip remaining OpenRouter models and go straight to Ollama when enabled. Set `false` if you use paid models that should all be tried.
+   - After **all** OpenRouter models fail (or short-circuit on rate limit), the app tries local **Ollama** when `OLLAMA_FALLBACK_ENABLED=true` (default). Fallback is composed in the LLM factory (`OpenRouterWithOllamaFallback`), not nested inside the OpenRouter client. In `ollama_only` mode, Ollama is the only provider. Requires Ollama running (`ollama serve`).
    - Ollama calls use `think: false` (needed for qwen3.x so chain-of-thought does not blow past the timeout). Prefer `OLLAMA_TIMEOUT_SECONDS=180` (or higher) for larger local models; lower values often fail mid-generation.
+   - For **faster local fallback**, use a smaller pulled model (e.g. `OLLAMA_MODEL=llama3.2:latest`) and warm it before demos: `ollama run <model>`. `OLLAMA_KEEP_ALIVE` (default `10m`) keeps the model loaded between calls.
    - `OLLAMA_BASE_URL` must be loopback by default (`127.0.0.1`, `localhost`, or `::1`) to avoid SSRF. Set `OLLAMA_ALLOW_REMOTE=true` only for a trusted remote Ollama.
    - `SECRET_KEY` is required for the Flask UI unless `FLASK_ENV=development` (known placeholders are rejected). Use a long random value for anything beyond trusted local use.
    - `FLASK_HOST` defaults to `127.0.0.1` (loopback). The app has **no authentication** — do not bind to `0.0.0.0` on an untrusted network.
@@ -118,6 +127,21 @@ The planned functionalities have been implemented. Due to the small amount of re
    postgresql+psycopg2://USER:PASSWORD@HOST:5432/DATABASE_NAME
    ```
 
+### LLM latency playbook
+
+Extraction time is almost entirely the LLM call (DB save is negligible). Use `logs/llm_requests.ndjson` to see what happened:
+
+| Field | What to look for |
+|-------|------------------|
+| `provider` / `model` | Which backend answered |
+| `attempt_index` | `0` = primary; higher = fallbacks |
+| `response_time_ms` | Per-attempt wall time |
+| `token_usage.completion_tokens` | Large values → verbose JSON / runaway generation |
+| `error_category` | `rate_limit`, `timeout`, `parse_error`, `validation_failure`, … |
+| `validation_result` | Final schema/domain accept/reject (separate `provider: validation` row) |
+| `fallback_used` | Whether this attempt was after an earlier failure |
+
+**Demo targets (local):** p50 success under ~30s when OpenRouter primary works; Ollama fallback under ~90s when the model is warm (`ollama run` first); avoid primary attempts that sit past ~60s (raise/lower `OPENROUTER_TIMEOUT_SECONDS` as needed). Bad JSON from one model now rotates to the next model instead of failing the whole extract immediately.
 4. Apply database migrations (also runs automatically when you start the CLI or web app):
 
    ```bash

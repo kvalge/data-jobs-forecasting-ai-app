@@ -11,6 +11,7 @@ import requests
 import src.config as config
 from src.llm.base_llm_client import BaseLLMClient
 from src.llm.error_messages import describe_http_status, describe_request_exception
+from src.llm.extract_validate import assert_extraction_usable
 from src.llm.ollama_url import validate_ollama_base_url
 from src.llm.prompts import EXTRACTION_SYSTEM_PROMPT
 from src.llm.request_metadata import (
@@ -44,6 +45,8 @@ class OllamaClient(BaseLLMClient):
         )
         url = f"{base}/api/chat"
 
+        max_tokens = int(getattr(config, "LLM_MAX_TOKENS", 2048) or 2048)
+        keep_alive = (getattr(config, "OLLAMA_KEEP_ALIVE", None) or "10m").strip() or "10m"
         payload = {
             "model": model_name,
             "messages": [
@@ -54,6 +57,10 @@ class OllamaClient(BaseLLMClient):
             "stream": False,
             # Qwen3.x defaults to long chain-of-thought; that blows past timeouts.
             "think": False,
+            "keep_alive": keep_alive,
+            "options": {
+                "num_predict": max_tokens,
+            },
         }
 
         timeout = config.OLLAMA_TIMEOUT_SECONDS
@@ -145,6 +152,7 @@ class OllamaClient(BaseLLMClient):
                 parsed = parse_message_content(
                     openai_shaped, f"ollama/{model_name}"
                 )
+                parsed = assert_extraction_usable(parsed)
             except Exception as e:
                 log_llm_request(
                     provider="ollama",
