@@ -50,6 +50,18 @@ def test_describe_does_not_append_provider_body_to_user_message():
     assert "Provider note" not in message
 
 
+def test_format_all_models_failed_is_actionable():
+    err = RuntimeError(
+        "All configured AI models failed (2 tried). "
+        "a: Unexpected response from the AI service for model 'a'."
+    )
+    message = format_llm_failure_for_user(err)
+    assert "every ai model" in message.lower()
+    assert "MODEL" in message
+    assert "Ollama" in message or "OLLAMA" in message
+    assert "try again" in message.lower()
+
+
 def test_format_db_error_hides_details():
     message = format_db_error_for_user(RuntimeError("DETAIL: password=hunter2"))
     assert "hunter2" not in message

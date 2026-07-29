@@ -154,11 +154,17 @@ def format_llm_failure_for_user(error: BaseException) -> str:
         or "All OpenRouter models failed" in text
     ):
         return (
-            "AI extraction failed for all configured models. "
-            "Check MODEL / fallbacks, Ollama settings, and try again."
+            "Could not extract this posting: every AI model in your chain failed "
+            "(OpenRouter models, then Ollama if enabled). "
+            "Check MODEL / FALLBACK_MODEL names and OPENROUTER_API_KEY in .env; "
+            "if local fallback is on, start Ollama (ollama serve) and confirm "
+            "OLLAMA_MODEL is pulled, then try again. Details are in the app logs."
         )
     # Avoid dumping long internal exception chains to the UI.
-    return "AI extraction failed. Please try again or check the application logs."
+    return (
+        "Could not extract this posting with the AI service. "
+        "Please try again, or check the application logs for details."
+    )
 
 
 def format_db_error_for_user(error: BaseException) -> str:
