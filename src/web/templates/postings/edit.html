@@ -10,7 +10,9 @@
     review them. Edit fields, then save. If the posting was not in English and you
     correct a translation, the original → English pair is saved to
     <code>glossary/original_en.tsv</code> (English→English pairs are skipped).
-    Keep one English skill per original skill (same count / order).
+    Keep one English skill per line. That list is what stays linked to this
+    posting (add/remove lines to change skills). Existing skill records keep
+    their other stored fields when re-used by English name.
   </p>
 
   <form method="post" action="{{ url_for('postings.update_posting', posting_id=posting.id) }}">

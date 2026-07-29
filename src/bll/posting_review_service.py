@@ -39,14 +39,22 @@ def update_posting_review(
     city: str | None,
     skills_en: list[str],
 ) -> ReviewUpdateResult:
-    """Validate, persist review fields, and update glossary outside the DB session."""
+    """Validate, persist review fields, and update glossary outside the DB session.
+
+    The edit form only exposes English skills. That list is the source of truth for
+    which skills are linked to the posting (add/remove/reorder). Existing ``skills``
+    rows keep their stored original ``display_name`` when re-linked by English name.
+    """
     with session_scope() as session:
         repository = JobPostingRepository(session)
         existing = repository.get_by_id(posting_id)
         if existing is None:
             raise ValueError(f"Job posting not found: id={posting_id}")
 
-        original_skills = list(existing.skills or [])
+        # Form skills_en → posting skill links (same labels for skills / skills_en).
+        skill_labels = [
+            line.strip() for line in (skills_en or []) if (line or "").strip()
+        ]
         validated = validate_review_fields(
             company_name=company_name,
             role_title=role_title,
@@ -58,8 +66,8 @@ def update_posting_review(
             location=location,
             country=country,
             city=city,
-            skills=original_skills,
-            skills_en=skills_en,
+            skills=skill_labels,
+            skills_en=skill_labels,
             salary_currency=existing.salary_currency,
         )
 

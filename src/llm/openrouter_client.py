@@ -27,6 +27,24 @@ def _is_rate_limit_error(err: BaseException) -> bool:
     return categorize_exception(err) == "rate_limit"
 
 
+def _should_shortcircuit_openrouter(err: BaseException) -> bool:
+    """Skip remaining OpenRouter models when further free-tier tries are unlikely to help."""
+    category = categorize_exception(err)
+    if category == "rate_limit" and bool(
+        getattr(config, "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT", True)
+    ):
+        return True
+    if category == "parse_error" and bool(
+        getattr(config, "OPENROUTER_SHORTCIRCUIT_ON_PARSE_ERROR", True)
+    ):
+        return True
+    if category == "timeout" and bool(
+        getattr(config, "OPENROUTER_SHORTCIRCUIT_ON_TIMEOUT", True)
+    ):
+        return True
+    return False
+
+
 class OpenRouterClient(BaseLLMClient):
     """LLM client for the OpenRouter API (model chain only; no Ollama nesting)."""
 
@@ -45,8 +63,8 @@ class OpenRouterClient(BaseLLMClient):
             "Authorization": f"Bearer {config.OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
         }
-        max_tokens = int(getattr(config, "LLM_MAX_TOKENS", 2048) or 2048)
-        timeout = int(getattr(config, "OPENROUTER_TIMEOUT_SECONDS", 60) or 60)
+        max_tokens = int(getattr(config, "LLM_MAX_TOKENS", 1024) or 1024)
+        timeout = int(getattr(config, "OPENROUTER_TIMEOUT_SECONDS", 30) or 30)
         payload = {
             "model": model_name,
             "messages": [
@@ -142,9 +160,6 @@ class OpenRouterClient(BaseLLMClient):
         if not models:
             raise ValueError("No LLM models configured")
 
-        shortcircuit = bool(
-            getattr(config, "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT", True)
-        )
         errors: list[str] = []
         last_error: BaseException | None = None
         models_attempted = 0
@@ -160,10 +175,10 @@ class OpenRouterClient(BaseLLMClient):
             except RECOVERABLE_LLM_ERRORS as err:
                 last_error = err
                 errors.append(f"{model_name}: {err}")
-                if shortcircuit and _is_rate_limit_error(err):
-                    # Shared free-tier quota: further OpenRouter models usually 429 too.
+                if _should_shortcircuit_openrouter(err):
+                    reason = categorize_exception(err)
                     for skipped_name in models[index + 1 :]:
-                        errors.append(f"{skipped_name}: skipped after rate limit")
+                        errors.append(f"{skipped_name}: skipped after {reason}")
                     break
                 continue
 

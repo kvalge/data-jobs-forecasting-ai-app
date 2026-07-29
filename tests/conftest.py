@@ -48,6 +48,8 @@ def restore_env():
             "OPENROUTER_TIMEOUT_SECONDS",
             "LLM_MAX_TOKENS",
             "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT",
+            "OPENROUTER_SHORTCIRCUIT_ON_PARSE_ERROR",
+            "OPENROUTER_SHORTCIRCUIT_ON_TIMEOUT",
             "MAX_POSTING_CHARS",
         )
     }
@@ -64,10 +66,16 @@ def restore_env():
         "OLLAMA_BASE_URL": config.OLLAMA_BASE_URL,
         "OLLAMA_TIMEOUT_SECONDS": config.OLLAMA_TIMEOUT_SECONDS,
         "OLLAMA_KEEP_ALIVE": getattr(config, "OLLAMA_KEEP_ALIVE", "10m"),
-        "OPENROUTER_TIMEOUT_SECONDS": getattr(config, "OPENROUTER_TIMEOUT_SECONDS", 60),
-        "LLM_MAX_TOKENS": getattr(config, "LLM_MAX_TOKENS", 2048),
+        "OPENROUTER_TIMEOUT_SECONDS": getattr(config, "OPENROUTER_TIMEOUT_SECONDS", 30),
+        "LLM_MAX_TOKENS": getattr(config, "LLM_MAX_TOKENS", 1024),
         "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT": getattr(
             config, "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT", True
+        ),
+        "OPENROUTER_SHORTCIRCUIT_ON_PARSE_ERROR": getattr(
+            config, "OPENROUTER_SHORTCIRCUIT_ON_PARSE_ERROR", True
+        ),
+        "OPENROUTER_SHORTCIRCUIT_ON_TIMEOUT": getattr(
+            config, "OPENROUTER_SHORTCIRCUIT_ON_TIMEOUT", True
         ),
     }
     yield
@@ -92,4 +100,10 @@ def restore_env():
     config.LLM_MAX_TOKENS = saved_globals["LLM_MAX_TOKENS"]
     config.OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT = saved_globals[
         "OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT"
+    ]
+    config.OPENROUTER_SHORTCIRCUIT_ON_PARSE_ERROR = saved_globals[
+        "OPENROUTER_SHORTCIRCUIT_ON_PARSE_ERROR"
+    ]
+    config.OPENROUTER_SHORTCIRCUIT_ON_TIMEOUT = saved_globals[
+        "OPENROUTER_SHORTCIRCUIT_ON_TIMEOUT"
     ]

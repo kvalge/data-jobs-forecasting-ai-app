@@ -65,6 +65,7 @@ def new_posting():
     return render_template("postings/new.html")
 
 
+
 @postings_bp.post("/")
 def create_posting():
     try:

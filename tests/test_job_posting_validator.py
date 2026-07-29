@@ -78,22 +78,24 @@ def test_allows_salary_min_only():
     assert result.salary_max is None
 
 
-def test_validate_review_fields_rejects_skill_count_mismatch():
-    with pytest.raises(ValueError, match="same length"):
-        validate_review_fields(
-            company_name="Acme",
-            role_title="Dev",
-            role_title_en="Dev",
-            salary_min=None,
-            salary_max=None,
-            work_type=WorkType.remote,
-            has_nondiscrimination_disclaimer=False,
-            location=None,
-            country=None,
-            city=None,
-            skills=["Python"],
-            skills_en=["Python", "SQL"],
-        )
+def test_validate_review_fields_uses_skills_en_as_posting_skills():
+    """Review form EN list replaces posting skill links (ignores prior original count)."""
+    result = validate_review_fields(
+        company_name="Acme",
+        role_title="Dev",
+        role_title_en="Dev",
+        salary_min=None,
+        salary_max=None,
+        work_type=WorkType.remote,
+        has_nondiscrimination_disclaimer=False,
+        location=None,
+        country=None,
+        city=None,
+        skills=["A", "B", "C"],
+        skills_en=["Python", "SQL"],
+    )
+    assert result.skills == ["Python", "SQL"]
+    assert result.skills_en == ["Python", "SQL"]
 
 
 def test_validate_review_fields_accepts_aligned_skills():
@@ -111,6 +113,7 @@ def test_validate_review_fields_accepts_aligned_skills():
         skills=["püüton"],
         skills_en=["Python"],
     )
-    assert result.skills == ["püüton"]
+    # Review form: EN list is the posting skill link (not the prior original label).
+    assert result.skills == ["Python"]
     assert result.skills_en == ["Python"]
     assert result.role_title_en == "Developer"

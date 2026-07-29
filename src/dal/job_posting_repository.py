@@ -129,7 +129,12 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         skills: list[str],
         skills_en: list[str],
     ) -> JobPostingEntity:
-        """Update UI-editable fields; keep original skill labels, refresh English."""
+        """Update UI-editable fields; relink skills from the review form list.
+
+        ``skills`` / ``skills_en`` are parallel labels from the form (usually the
+        same English list). ``get_or_create`` keys by English name so existing
+        skill rows keep their original ``display_name`` and other columns.
+        """
         orm_obj = self.session.get(JobPostingORM, entity_id)
         if orm_obj is None:
             raise ValueError(f"Job posting not found: id={entity_id}")
@@ -157,12 +162,13 @@ class JobPostingRepository(BaseRepository[JobPostingEntity]):
         orm_obj.skills.clear()
         skill_cache = self.skill_repository.get_by_normalized_names(list(skills_en))
         for original, english in zip(skills, skills_en):
-            original_label = (original or "").strip() or (english or "").strip()
-            english_label = (english or "").strip() or original_label
+            english_label = (english or "").strip() or (original or "").strip()
             if not english_label:
                 continue
+            # Prefer EN as the lookup key; keep any prior original label only when
+            # creating a brand-new skill row (get_or_create preserves existing display_name).
             skill_orm = self.skill_repository.get_or_create(
-                original_label,
+                english_label,
                 display_name_en=english_label,
                 cache=skill_cache,
             )

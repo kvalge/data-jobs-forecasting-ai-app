@@ -137,6 +137,80 @@ def test_rate_limit_shortcircuit_skips_remaining_openrouter_models(monkeypatch):
     )
 
 
+def test_parse_error_shortcircuit_skips_remaining_openrouter_models(monkeypatch):
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.llm_model_chain",
+        lambda: ["model-a", "model-b"],
+    )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_SHORTCIRCUIT_ON_PARSE_ERROR",
+        True,
+    )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT",
+        False,
+    )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_SHORTCIRCUIT_ON_TIMEOUT",
+        False,
+    )
+    monkeypatch.setattr("src.llm.fallback_client.config.OLLAMA_FALLBACK_ENABLED", True)
+
+    primary = OpenRouterClient()
+    calls: list[str] = []
+
+    def fake_call(model_name, posting_text, *, fallback_used=False, attempt_index=0):
+        calls.append(model_name)
+        raise ValueError(f"Model '{model_name}' returned non-JSON message content")
+
+    monkeypatch.setattr(primary, "_call_model", fake_call)
+
+    ollama = MagicMock()
+    ollama.extract.return_value = {"role_title": "Local", "skills": []}
+    monkeypatch.setattr("src.llm.ollama_client.OllamaClient", lambda: ollama)
+
+    result = OpenRouterWithOllamaFallback(primary).extract("posting")
+    assert result["role_title"] == "Local"
+    assert calls == ["model-a"]
+
+
+def test_timeout_shortcircuit_skips_remaining_openrouter_models(monkeypatch):
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.llm_model_chain",
+        lambda: ["model-a", "model-b"],
+    )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_SHORTCIRCUIT_ON_TIMEOUT",
+        True,
+    )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT",
+        False,
+    )
+    monkeypatch.setattr(
+        "src.llm.openrouter_client.config.OPENROUTER_SHORTCIRCUIT_ON_PARSE_ERROR",
+        False,
+    )
+    monkeypatch.setattr("src.llm.fallback_client.config.OLLAMA_FALLBACK_ENABLED", True)
+
+    primary = OpenRouterClient()
+    calls: list[str] = []
+
+    def fake_call(model_name, posting_text, *, fallback_used=False, attempt_index=0):
+        calls.append(model_name)
+        raise RuntimeError(f"AI request timed out for model '{model_name}'.")
+
+    monkeypatch.setattr(primary, "_call_model", fake_call)
+
+    ollama = MagicMock()
+    ollama.extract.return_value = {"role_title": "Local", "skills": []}
+    monkeypatch.setattr("src.llm.ollama_client.OllamaClient", lambda: ollama)
+
+    result = OpenRouterWithOllamaFallback(primary).extract("posting")
+    assert result["role_title"] == "Local"
+    assert calls == ["model-a"]
+
+
 def test_extract_skips_ollama_when_disabled(client, monkeypatch):
     monkeypatch.setattr(
         "src.llm.openrouter_client.config.llm_model_chain",

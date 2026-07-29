@@ -45,7 +45,7 @@ class OllamaClient(BaseLLMClient):
         )
         url = f"{base}/api/chat"
 
-        max_tokens = int(getattr(config, "LLM_MAX_TOKENS", 2048) or 2048)
+        max_tokens = int(getattr(config, "LLM_MAX_TOKENS", 1024) or 1024)
         keep_alive = (getattr(config, "OLLAMA_KEEP_ALIVE", None) or "10m").strip() or "10m"
         payload = {
             "model": model_name,

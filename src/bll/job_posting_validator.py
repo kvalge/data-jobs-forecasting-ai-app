@@ -54,6 +54,19 @@ def _validate_salary(salary_min: float | None, salary_max: float | None) -> None
         )
 
 
+def align_skills_to_english(
+    skills: list[str], skills_en: list[str]
+) -> tuple[list[str], list[str]]:
+    """Use the review-form English skill list as the posting skill links.
+
+    The edit UI only edits ``skills_en``. That list becomes both ``skills`` and
+    ``skills_en`` for the posting association. Existing skill DB rows keep their
+    other columns when re-linked by English name via ``get_or_create``.
+    """
+    en = [(s or "").strip() for s in (skills_en or []) if (s or "").strip()]
+    return list(en), list(en)
+
+
 def _normalize_skill_lists(
     skills: list[str],
     skills_en: list[str],
@@ -143,6 +156,7 @@ def validate_review_fields(
     salary_currency: str | None = None,
 ) -> JobPostingExtractionDTO:
     """Apply the same domain rules used after LLM extract to review-form edits."""
+    skills, skills_en = align_skills_to_english(skills, skills_en)
     dto = JobPostingExtractionDTO(
         company_name=company_name,
         role_title=role_title,
