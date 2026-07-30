@@ -10,9 +10,10 @@ Once enough postings are collected, the app analyzes the data (**top companies**
 
 ## Sample analyses
 
-[Latest prediction model results](docs/prediction/model_results.md)
+- [Latest prediction results (fake data)](docs/prediction/model_results_fake.md)
+- [Latest prediction results (database)](docs/prediction/model_results_database.md)
 
-Charts below are generated from the database when you run **Analysis** in the web UI (`/analysis`). PNGs are written to `docs/analysis/` and overwritten on each run. Prediction runs also refresh `docs/prediction/model_results.md` (includes whether models trained on **fake** `data/fake/` series or **database** aggregates, plus what “top roles / top skills” means).
+Charts below are generated from the database when you run **Analysis** in the web UI (`/analysis`). PNGs are written to `docs/analysis/` and overwritten on each run. Prediction runs refresh the matching file under `docs/prediction/` (`model_results_fake.md` or `model_results_database.md`), including what “top roles / top skills” means.
 
 ### Top companies
 

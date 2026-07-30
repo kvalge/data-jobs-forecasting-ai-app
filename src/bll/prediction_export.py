@@ -10,7 +10,19 @@ from typing import Any
 from src.bll.prediction_types import TargetType
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_RESULTS_PATH = _PROJECT_ROOT / "docs" / "prediction" / "model_results.md"
+_RESULTS_DIR = _PROJECT_ROOT / "docs" / "prediction"
+RESULTS_PATH_FAKE = _RESULTS_DIR / "model_results_fake.md"
+RESULTS_PATH_DATABASE = _RESULTS_DIR / "model_results_database.md"
+# Legacy single-file path (kept only for docs that still mention it).
+DEFAULT_RESULTS_PATH = RESULTS_PATH_FAKE
+
+
+def results_path_for_source(data_source: str | None) -> Path:
+    """Return the markdown export path for a prediction data source."""
+    kind = (data_source or "fake").strip().lower()
+    if kind in ("database", "db"):
+        return RESULTS_PATH_DATABASE
+    return RESULTS_PATH_FAKE
 
 
 def _format_value(target_type: str, value: float | None) -> str:
@@ -41,8 +53,13 @@ def export_model_results_markdown(
     results: list[dict[str, Any]],
     path: Path | None = None,
 ) -> Path:
-    """Write model results (sorted by value within each model) to markdown."""
-    out = Path(path or DEFAULT_RESULTS_PATH)
+    """Write model results (sorted by value within each model) to markdown.
+
+    Fake and database runs write to separate files under ``docs/prediction/``
+    unless an explicit ``path`` is provided.
+    """
+    data_source = (summary.get("data_source") or "unknown").strip().lower()
+    out = Path(path) if path is not None else results_path_for_source(data_source)
     out.parent.mkdir(parents=True, exist_ok=True)
 
     by_model: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -59,29 +76,34 @@ def export_model_results_markdown(
             )
         )
 
-    data_source = (summary.get("data_source") or "unknown").strip().lower()
     if data_source == "fake":
+        title = "Prediction model results (fake data)"
         data_source_label = "Fake / synthetic series (`data/fake/` CSVs)"
         data_source_note = (
             "Models were trained on generated job-market aggregates "
             "(not live PostgreSQL postings). Regenerate with "
             "`python scripts/generate_fake_job_market.py`. "
-            "Use the **Prediction (database)** UI tab or "
-            "`PREDICTION_DATA_SOURCE=database` for live posting aggregates."
+            "Database-backed runs write to `model_results_database.md`."
         )
+        ui_hint = "**Prediction (fake)**"
     elif data_source == "database":
+        title = "Prediction model results (database)"
         data_source_label = "Real database aggregates (PostgreSQL `job_postings` / skills)"
         data_source_note = (
-            "Models were trained on series built from saved job postings in the database."
+            "Models were trained on series built from saved job postings in the database. "
+            "Fake-data runs write to `model_results_fake.md`."
         )
+        ui_hint = "**Prediction (database)**"
     else:
+        title = "Prediction model results"
         data_source_label = summary.get("data_source") or "—"
         data_source_note = "See `PREDICTION_DATA_SOURCE` in `.env`."
+        ui_hint = "**Prediction**"
 
     lines: list[str] = [
-        "# Prediction model results",
+        f"# {title}",
         "",
-        "Auto-generated when you run **Prediction** in the web UI or CLI. "
+        f"Auto-generated when you run {ui_hint} in the web UI or CLI. "
         "Rows within each model are ordered by predicted value (highest first).",
         "",
         f"- **Generated at:** {datetime.now().isoformat(timespec='seconds')}",

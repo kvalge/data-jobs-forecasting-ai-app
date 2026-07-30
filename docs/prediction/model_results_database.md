@@ -1,25 +1,25 @@
-# Prediction model results
+# Prediction model results (database)
 
-Auto-generated when you run **Prediction** in the web UI or CLI. Rows within each model are ordered by predicted value (highest first).
+Auto-generated when you run **Prediction (database)** in the web UI or CLI. Rows within each model are ordered by predicted value (highest first).
 
-- **Generated at:** 2026-07-30T05:58:06
-- **Run id:** 6
+- **Generated at:** 2026-07-30T05:59:27
+- **Run id:** 7
 - **Status:** completed
 - **Training data source:** Real database aggregates (PostgreSQL `job_postings` / skills)
 - **Training window (months):** 12
 - **Horizons:** 3
 - **Models:** baseline
-- **Elapsed (seconds):** 0.133
+- **Elapsed (seconds):** 0.14
 
 ## Training data
 
-Models were trained on series built from saved job postings in the database.
+Models were trained on series built from saved job postings in the database. Fake-data runs write to `model_results_fake.md`.
 
 ## Time per model
 
 | Model | Seconds |
 |-------|---------|
-| `baseline` | 0.069 |
+| `baseline` | 0.076 |
 
 ## Top roles & top skills (historical shortlist)
 

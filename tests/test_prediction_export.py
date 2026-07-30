@@ -1,6 +1,18 @@
 """Markdown export for prediction model results."""
 
-from src.bll.prediction_export import export_model_results_markdown
+from src.bll.prediction_export import (
+    RESULTS_PATH_DATABASE,
+    RESULTS_PATH_FAKE,
+    export_model_results_markdown,
+    results_path_for_source,
+)
+
+
+def test_results_path_for_source():
+    assert results_path_for_source("fake") == RESULTS_PATH_FAKE
+    assert results_path_for_source("database") == RESULTS_PATH_DATABASE
+    assert results_path_for_source("db") == RESULTS_PATH_DATABASE
+    assert results_path_for_source(None) == RESULTS_PATH_FAKE
 
 
 def test_export_model_results_markdown_orders_by_value(tmp_path):
@@ -47,7 +59,7 @@ def test_export_model_results_markdown_orders_by_value(tmp_path):
         path=path,
     )
     text = out.read_text(encoding="utf-8")
-    assert "Prediction model results" in text
+    assert "Prediction model results (fake data)" in text
     assert "Fake / synthetic" in text
     assert "historical" in text.lower()
     assert "4124" in text  # salary rounded to whole number
@@ -55,3 +67,38 @@ def test_export_model_results_markdown_orders_by_value(tmp_path):
     high_pos = text.index("High")
     low_pos = text.index("Low")
     assert high_pos < low_pos
+
+
+def test_export_defaults_to_separate_paths_by_source(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "src.bll.prediction_export._RESULTS_DIR",
+        tmp_path,
+    )
+    monkeypatch.setattr(
+        "src.bll.prediction_export.RESULTS_PATH_FAKE",
+        tmp_path / "model_results_fake.md",
+    )
+    monkeypatch.setattr(
+        "src.bll.prediction_export.RESULTS_PATH_DATABASE",
+        tmp_path / "model_results_database.md",
+    )
+
+    fake_out = export_model_results_markdown(
+        run_id=1,
+        status="completed",
+        summary={"data_source": "fake", "models": ["baseline"], "horizons": [3]},
+        results=[],
+    )
+    db_out = export_model_results_markdown(
+        run_id=2,
+        status="completed",
+        summary={"data_source": "database", "models": ["baseline"], "horizons": [3]},
+        results=[],
+    )
+
+    assert fake_out.name == "model_results_fake.md"
+    assert db_out.name == "model_results_database.md"
+    assert fake_out.exists()
+    assert db_out.exists()
+    assert "fake data" in fake_out.read_text(encoding="utf-8").lower()
+    assert "database" in db_out.read_text(encoding="utf-8").lower()
