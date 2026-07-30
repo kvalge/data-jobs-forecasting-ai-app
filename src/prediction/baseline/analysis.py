@@ -2,10 +2,29 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import numpy as np
 import pandas as pd
+
+
+def _finite_or_none(value: Any) -> float | None:
+    """Convert to float, mapping NaN/Inf/missing to None (JSON/Postgres-safe)."""
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(f) or math.isinf(f):
+        return None
+    return f
 
 
 def _series_for_key(
@@ -28,7 +47,7 @@ def moving_averages(series: pd.Series, windows: tuple[int, ...] = (3, 6, 12)) ->
     out: dict[str, float | None] = {}
     for w in windows:
         if len(series) >= w:
-            out[f"ma_{w}"] = float(series.tail(w).mean())
+            out[f"ma_{w}"] = _finite_or_none(series.tail(w).mean())
         else:
             out[f"ma_{w}"] = None
     return out
@@ -37,9 +56,9 @@ def moving_averages(series: pd.Series, windows: tuple[int, ...] = (3, 6, 12)) ->
 def growth_rate_pct(series: pd.Series, lag: int = 1) -> float | None:
     if len(series) <= lag:
         return None
-    prev = float(series.iloc[-(lag + 1)])
-    curr = float(series.iloc[-1])
-    if prev == 0:
+    prev = _finite_or_none(series.iloc[-(lag + 1)])
+    curr = _finite_or_none(series.iloc[-1])
+    if prev is None or curr is None or prev == 0:
         return None
     return round(100.0 * (curr - prev) / prev, 2)
 
@@ -57,6 +76,10 @@ def linear_trend(series: pd.Series) -> dict[str, Any]:
     if len(series) < 2:
         return {"slope": None, "intercept": None, "direction": "unknown", "r2": None}
     y = series.astype(float).values
+    if np.any(~np.isfinite(y)):
+        y = y[np.isfinite(y)]
+        if len(y) < 2:
+            return {"slope": None, "intercept": None, "direction": "unknown", "r2": None}
     x = np.arange(len(y), dtype=float)
     slope, intercept = np.polyfit(x, y, 1)
     y_hat = slope * x + intercept
@@ -70,10 +93,10 @@ def linear_trend(series: pd.Series) -> dict[str, Any]:
     else:
         direction = "flat"
     return {
-        "slope": round(float(slope), 4),
-        "intercept": round(float(intercept), 4),
+        "slope": _finite_or_none(round(float(slope), 4)),
+        "intercept": _finite_or_none(round(float(intercept), 4)),
         "direction": direction,
-        "r2": round(float(r2), 4),
+        "r2": _finite_or_none(round(float(r2), 4)),
     }
 
 
@@ -84,7 +107,7 @@ def analyze_entity(
     value_col: str = "posting_count",
 ) -> dict[str, Any]:
     series = _series_for_key(df, key_col, key, value_col)
-    latest = float(series.iloc[-1]) if len(series) else None
+    latest = _finite_or_none(series.iloc[-1]) if len(series) else None
     return {
         "key": key,
         "latest": latest,

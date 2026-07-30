@@ -7,7 +7,21 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from src.dal.json_safe import json_safe
 from src.dal.models import ForecastResultORM, ForecastRunORM
+
+
+def _safe_float(value: Any) -> float | None:
+    """Coerce to float for DB columns; NaN/Inf → None."""
+    if value is None or value == "":
+        return None
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    if f != f or f in (float("inf"), float("-inf")):  # NaN or Inf
+        return None
+    return f
 
 
 class ForecastRepository:
@@ -30,10 +44,10 @@ class ForecastRepository:
             created_at=datetime.now(),
             data_source=data_source,
             training_window_months=training_window_months,
-            horizons=list(horizons),
-            models_requested=list(models_requested),
+            horizons=json_safe(list(horizons)),
+            models_requested=json_safe(list(models_requested)),
             status=status,
-            meta=meta,
+            meta=json_safe(meta) if meta is not None else None,
             notes=notes,
         )
         self.session.add(run)
@@ -49,6 +63,7 @@ class ForecastRepository:
             else:
                 period_date = date.fromisoformat(str(period)[:10])
 
+            metrics = row.get("metrics")
             self.session.add(
                 ForecastResultORM(
                     run_id=run.id,
@@ -57,8 +72,8 @@ class ForecastRepository:
                     target_key=row["target_key"],
                     horizon_months=int(row.get("horizon_months") or 0),
                     period_start=period_date,
-                    predicted_value=row.get("predicted_value"),
-                    metrics=row.get("metrics"),
+                    predicted_value=_safe_float(row.get("predicted_value")),
+                    metrics=json_safe(metrics) if metrics is not None else None,
                 )
             )
         self.session.flush()

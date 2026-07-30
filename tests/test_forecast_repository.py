@@ -78,3 +78,51 @@ def test_save_and_list_run(session):
     assert results[2].period_start == date(2026, 10, 1)
     assert session.query(ForecastRunORM).count() == 1
     assert session.query(ForecastResultORM).count() == 3
+
+
+def test_save_run_sanitizes_nan_in_meta_and_metrics(session):
+    """Postgres JSON rejects NaN; repository must coerce to null before insert."""
+    repo = ForecastRepository(session)
+    run_id = repo.save_run(
+        data_source="database",
+        training_window_months=24,
+        horizons=[3],
+        models_requested=["baseline"],
+        status="completed",
+        meta={
+            "baseline": {
+                "roles": [
+                    {
+                        "key": "AI Security Engineer",
+                        "latest": float("nan"),
+                        "growth_rate_pct": None,
+                        "trend": {
+                            "slope": None,
+                            "intercept": None,
+                            "direction": "unknown",
+                            "r2": None,
+                        },
+                    }
+                ]
+            }
+        },
+        results=[
+            {
+                "model_name": "baseline",
+                "target_type": "role",
+                "target_key": "AI Security Engineer",
+                "horizon_months": 3,
+                "period_start": "2026-10-01",
+                "predicted_value": float("nan"),
+                "metrics": {"mae": float("nan")},
+            }
+        ],
+    )
+    session.commit()
+    run = repo.get_run(run_id)
+    assert run is not None
+    assert run.meta["baseline"]["roles"][0]["latest"] is None
+    results = repo.list_results(run_id)
+    assert len(results) == 1
+    assert results[0].predicted_value is None
+    assert results[0].metrics["mae"] is None
