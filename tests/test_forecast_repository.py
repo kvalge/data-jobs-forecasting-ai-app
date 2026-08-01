@@ -35,6 +35,15 @@ def test_save_and_list_run(session):
         results=[
             {
                 "model_name": "rf",
+                "target_type": "skill",
+                "target_key": "Python",
+                "horizon_months": 3,
+                "period_start": "2026-10-01",
+                "predicted_value": 8.0,
+                "metrics": None,
+            },
+            {
+                "model_name": "rf",
                 "target_type": "role",
                 "target_key": "Data Engineer",
                 "horizon_months": 3,
@@ -68,16 +77,19 @@ def test_save_and_list_run(session):
     assert run is not None
     assert run.training_window_months == 12
     results = repo.list_results(1)
-    assert len(results) == 3
-    # Grouped by model name, then highest value first
-    assert results[0].model_name == "arima"
-    assert results[1].model_name == "rf"
+    assert len(results) == 4
+    # model → type → highest value
+    assert [r.model_name for r in results] == ["arima", "rf", "rf", "rf"]
+    assert results[0].target_key == "ML Engineer"
+    assert results[1].target_type == "role"
     assert results[1].target_key == "Data Analyst"
     assert results[1].predicted_value == 20.0
     assert results[2].target_key == "Data Engineer"
     assert results[2].period_start == date(2026, 10, 1)
+    assert results[3].target_type == "skill"
+    assert results[3].target_key == "Python"
     assert session.query(ForecastRunORM).count() == 1
-    assert session.query(ForecastResultORM).count() == 3
+    assert session.query(ForecastResultORM).count() == 4
 
 
 def test_save_run_sanitizes_nan_in_meta_and_metrics(session):

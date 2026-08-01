@@ -37,7 +37,7 @@ Charts below are generated from the database when you run **Analysis** in the we
 - PostgreSQL
 - SQLAlchemy + Alembic (schema migrations)
 - Flask + Jinja2 (web UI for inserting postings, descriptive analysis, and prediction)
-- OpenRouter API (free-tier LLM) for structured extraction, with local Ollama (`qwen3.5:latest`) when OpenRouter is exhausted
+- OpenRouter API (free-tier LLM) for structured extraction, with local Ollama when OpenRouter is exhausted (`OLLAMA_MODEL`; code default `qwen3.5:latest`, faster example `llama3.2:latest`)
 - Pydantic for schema validation
 - matplotlib (analysis chart PNGs for the UI export / README)
 - pandas / numpy / scikit-learn / statsmodels / Prophet (time series prediction)
@@ -48,14 +48,14 @@ Job postings are entered manually (copy-paste or `.txt` upload), covering a broa
 
 ## Project status
 
-The planned functionalities have been implemented. Due to the small amount of real data, currently synthetically generated data is used for forecasting.
+Core features are implemented: LLM extract/save, review/edit, descriptive analysis on live Postgres, and forecasting on both **fake** series (`data/fake/`) and **database** aggregates from saved postings. With little real posting history, fake data remains the practical default for full multi-month forecasts; the database prediction tab works when enough postings exist over time.
 
 ## Prerequisites
 
 - Python 3.10+ recommended
 - A running PostgreSQL database you can connect to
-- An OpenRouter API key and model IDs for primary + fallback extraction
-- Optional: [Ollama](https://ollama.com/) with `OLLAMA_MODEL` pulled (default `qwen3.5:latest`) for local fallback when OpenRouter is exhausted
+- An OpenRouter API key and model IDs for primary + fallback extraction (unless `LLM_PROVIDER_MODE=ollama_only`)
+- Optional: [Ollama](https://ollama.com/) with your `OLLAMA_MODEL` pulled for local fallback when OpenRouter is exhausted
 
 ## Setup
 
@@ -116,7 +116,8 @@ The planned functionalities have been implemented. Due to the small amount of re
    - `OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT` / `_ON_PARSE_ERROR` / `_ON_TIMEOUT` (default `true`): after 429, truncated/non-JSON, or timeout, skip remaining OpenRouter models and go straight to Ollama when enabled. Set `false` if you use paid models that should all be tried.
    - After **all** OpenRouter models fail (or short-circuit), the app tries local **Ollama** when `OLLAMA_FALLBACK_ENABLED=true` (default). Fallback is composed in the LLM factory (`OpenRouterWithOllamaFallback`), not nested inside the OpenRouter client. In `ollama_only` mode, Ollama is the only provider. Requires Ollama running (`ollama serve`).
    - Ollama calls use `think: false` (needed for qwen3.x so chain-of-thought does not blow past the timeout). Prefer `OLLAMA_TIMEOUT_SECONDS=120` (or higher for larger local models).
-   - For **faster local fallback**, use a smaller pulled model (default example `llama3.2:latest`; `qwen3.5` is stronger but slower) and warm it before demos: `ollama run <model>`. `OLLAMA_KEEP_ALIVE` (default `10m`) keeps the model loaded between calls.   - `OLLAMA_BASE_URL` must be loopback by default (`127.0.0.1`, `localhost`, or `::1`) to avoid SSRF. Set `OLLAMA_ALLOW_REMOTE=true` only for a trusted remote Ollama.
+   - For **faster local fallback**, use a smaller pulled model (example `llama3.2:latest`; code default `qwen3.5:latest` is stronger but slower) and warm it before demos: `ollama run <model>`. `OLLAMA_KEEP_ALIVE` (default `10m`) keeps the model loaded between calls.
+   - `OLLAMA_BASE_URL` must be loopback by default (`127.0.0.1`, `localhost`, or `::1`) to avoid SSRF. Set `OLLAMA_ALLOW_REMOTE=true` only for a trusted remote Ollama.
    - `SECRET_KEY` is required for the Flask UI unless `FLASK_ENV=development` (known placeholders are rejected). Use a long random value for anything beyond trusted local use.
    - `FLASK_HOST` defaults to `127.0.0.1` (loopback). The app has **no authentication** — do not bind to `0.0.0.0` on an untrusted network.
    - `FLASK_DEBUG` defaults to `false`. Only enable for local debugging; never expose the debugger remotely.
@@ -190,9 +191,9 @@ Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`). Th
 - Uploads must be UTF-8 `.txt` (other extensions and binary content are rejected). Mutating forms are CSRF-protected.
 - If a file is uploaded, it is used instead of the pasted text.
 - After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and English skills.
-- Saving edits updates the database. If you correct a non-English → English translation on the review page, that pair is saved to `glossary/original_en.tsv` (English→English pairs are skipped; glossary is not filled on initial extract).
+- Saving edits updates the database. The English skills list on the review form is the source of truth for which skills stay linked to the posting. If you correct a non-English → English translation, that pair is saved to `glossary/original_en.tsv` (English→English pairs are skipped; glossary is not filled on initial extract).
 - Open **Analysis** (`/analysis`) to query top companies, top English roles, salary min/avg/max (nulls excluded), and top English skills. Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).
-- Open **Prediction (fake)** (`/prediction`) for forecasts on `data/fake/` series, or **Prediction (database)** (`/prediction/database`) for the same models on aggregates from saved job postings. Default model selection is `baseline`, `prophet`, and `arima`; choose more (or all) explicitly. Outcomes are stored in PostgreSQL. The “Top roles / Top skills” lines on the results page are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
+- Open **Prediction (fake)** (`/prediction`) for forecasts on `data/fake/` series, or **Prediction (database)** (`/prediction/database`) for the same models on aggregates from saved job postings (by `date_added`). Default model selection is `baseline`, `prophet`, and `arima`; choose more (or all) explicitly. Outcomes are stored in PostgreSQL; markdown exports go to `docs/prediction/model_results_fake.md` or `model_results_database.md`. The “Top roles / Top skills” lines are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
 - Success, duplicate, and error messages appear as flash banners.
 - The CLI remains fully functional alongside the web UI.
 
@@ -204,7 +205,7 @@ From the project root (venv activated):
 pytest
 ```
 
-Tests cover config validation, domain rules, content-hash dedup (LLM mocked), OpenRouter model chain + Ollama fallback (HTTP mocked), posting size / Ollama URL / CSRF / web runtime hardening, LLM provider mode + metadata logging, skill get-or-create, analysis aggregations (in-memory SQLite), prediction baseline/models/orchestration (fake mini datasets; Flask prediction mocked), and Flask insert/analysis/prediction routes (ingest/DB mocked). They do not call OpenRouter, Ollama, or require PostgreSQL (`tests/conftest.py` blocks live LLM HTTP if a mock is missing).
+Tests cover config validation, domain rules, content-hash dedup (LLM mocked), OpenRouter model chain + Ollama fallback (HTTP mocked), posting size / Ollama URL / CSRF / web runtime hardening, LLM provider mode + metadata logging, skill get-or-create and review skill updates, analysis aggregations (in-memory SQLite), prediction baseline/models/orchestration (fake mini datasets), `DatabaseSource` aggregates (SQLite), Flask prediction fake/database routes (orchestration mocked), and Flask insert/analysis routes (ingest/DB mocked). They do not call OpenRouter, Ollama, or require PostgreSQL (`tests/conftest.py` blocks live LLM HTTP if a mock is missing).
 
 ## Database migrations (Alembic)
 

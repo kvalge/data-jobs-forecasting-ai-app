@@ -2,16 +2,16 @@
 
 ## What this project is
 
-A **portfolio / WIP Python app** that:
+A **portfolio Python app** that:
 
 1. Accepts raw job posting text (CLI `.txt` path, or web paste / `.txt` upload)
 2. Uses an **LLM via OpenRouter** (model chain) to extract structured fields, with **local Ollama** as last resort when OpenRouter fails (e.g. free-tier limits)
-3. Validates with **Pydantic** plus domain rules
+3. Validates with **Pydantic** plus domain rules (including mid-chain checks so bad JSON can rotate to the next model)
 4. Resolves English role titles and skills from the **same** extraction response (glossary overrides when present)
 5. Saves postings and skills into **PostgreSQL** (SQLAlchemy + Alembic)
 6. Offers a **Flask UI** to review/edit postings, run descriptive analysis, and run forecasts
 7. Runs **descriptive analysis** (top companies/roles/skills, salary stats) and PNG chart export
-8. Runs **time series prediction** (baseline + Prophet/SARIMA/ARIMA/RF/HGB) on fake series today, with a switch for future DB aggregates
+8. Runs **time series prediction** (baseline + Prophet/SARIMA/ARIMA/RF/HGB) on **fake** series (`data/fake/`) and on **live DB aggregates** from saved `job_postings`
 
 **Stack:** Python, PostgreSQL, SQLAlchemy, Alembic, Flask + Jinja2, OpenRouter API, optional local Ollama, Pydantic, pandas/numpy/scikit-learn/statsmodels/Prophet, matplotlib, `python-dotenv`, `requests`, pytest
 
@@ -31,7 +31,7 @@ src/
 alembic/                    # migrations
 scripts/                    # fake job-market generator
 docs/analysis/              # analysis PNG charts
-docs/prediction/            # exported model_results.md
+docs/prediction/            # model_results_fake.md + model_results_database.md
 glossary/original_en.tsv    # original → English label glossary
 tests/                      # pytest suite
 ```
@@ -46,14 +46,16 @@ tests/                      # pytest suite
 |---------------|------|
 | `README.md` | Setup, CLI/web run, analysis charts, prediction notes, migrations |
 | `requirements.txt` | Pinned core stack + Flask, matplotlib, pandas, sklearn, statsmodels, prophet |
-| `.env.example` | API/DB/`MODEL`+fallbacks/Ollama/`SECRET_KEY`/`PREDICTION_DATA_SOURCE` |
+| `.env.example` | API/DB/`MODEL`+fallbacks/Ollama latency knobs/`SECRET_KEY`/`PREDICTION_DATA_SOURCE` |
 | `.gitignore` | `venv/`, `.env`, caches, `data/`, pytest artifacts |
 | `PROJECT_SUMMARY.md` | This document |
 | `pytest.ini` | `pythonpath = .`, `testpaths = tests` |
 | `alembic.ini` | Alembic config (URL injected from `.env`) |
 | `glossary/original_en.tsv` | User-corrected original → English pairs (no en→en) |
 | `scripts/generate_fake_job_market.py` | Builds `data/fake/` series for forecasting |
-| `docs/prediction/model_results.md` | Latest prediction export (training source + results) |
+| `docs/prediction/model_results_fake.md` | Latest fake-data prediction export |
+| `docs/prediction/model_results_database.md` | Latest database prediction export |
+| `docs/prediction/model_results.md` | Legacy pointer to the two files above |
 | `.cursor/` | Agent rules and implementation plans |
 
 ### Entry & config
@@ -61,7 +63,7 @@ tests/                      # pytest suite
 | File | Role |
 |------|------|
 | `src/main.py` | CLI menu; posting ingest + prediction prompts |
-| `src/config.py` | Loads `.env`; `validate_config()`; `llm_model_chain()`; `LLM_PROVIDER_MODE`; Ollama + prediction source |
+| `src/config.py` | Loads `.env`; `validate_config()`; `llm_model_chain()`; `LLM_PROVIDER_MODE`; Ollama + prediction source (`fake`\|`database`) |
 | `src/web/__main__.py` | Runs Flask app (`python -m src.web`); loopback bind, debug from env |
 | `src/web/__init__.py` | `create_app()` — CSRFProtect, blueprints for postings, analysis, prediction |
 | `src/web/runtime.py` | `SECRET_KEY` policy, `FLASK_HOST` / `FLASK_DEBUG` helpers |
@@ -72,14 +74,14 @@ tests/                      # pytest suite
 |------|------|
 | `posting_ingest.py` | Shared CLI/web entry: short lookup session → LLM (no session) → short save session |
 | `extraction_service.py` | Hash helpers, LLM extract → validate → entity; save with race re-check |
-| `job_posting_validator.py` | Domain rules (non-empty title, salary range, drop blank skills) |
+| `job_posting_validator.py` | Domain rules (non-empty title, salary range, skill list alignment) |
 | `glossary.py` | Lookup + save user-corrected original→English pairs (skip en→en) |
 | `analysis_service.py` | Thin façade: clamp top-N, delegate aggregates to `AnalysisRepository` |
 | `chart_export.py` | matplotlib PNGs under `docs/analysis/` |
 | `prediction_service.py` | Thin orchestrator for baseline + forecasts; timings; persist run |
 | `prediction_shortlist.py` / `prediction_*_runner.py` / `prediction_types.py` | Ranking, baseline/forecast loops, TargetType/RunStatus |
 | `posting_review_service.py` / `analysis_facade.py` / `prediction_history.py` | Web BLL façades |
-| `prediction_export.py` | Writes `docs/prediction/model_results.md` |
+| `prediction_export.py` | Writes `docs/prediction/model_results_{fake,database}.md` by data source |
 
 ### DTO (`src/dto/`)
 
@@ -113,9 +115,9 @@ tests/                      # pytest suite
 
 | File | Role |
 |------|------|
-| `data_source.py` | Protocol + `get_data_source()` factory |
+| `data_source.py` | Protocol + `get_data_source()` factory (`fake`\|`database`) |
 | `fake_file_source.py` | Loads monthly/weekly aggregates from `data/fake/` |
-| `database_source.py` | Quarantined stub (constructor raises; config rejects `database`) |
+| `database_source.py` | Aggregates live `job_postings` / skills by `date_added` (same schemas as fake) |
 | `baseline/` | MA, growth, market share, linear trend |
 | `models/` | Prophet, SARIMA, ARIMA, RF, HGB adapters |
 
@@ -125,9 +127,10 @@ tests/                      # pytest suite
 |------|------|
 | `base_llm_client.py` | Abstract `extract(posting_text) -> dict` |
 | `prompts.py` / `response_parse.py` | Shared extraction prompt + JSON/fence parsing |
-| `openrouter_client.py` | Extraction via OpenRouter model chain only (narrow recoverable errors) |
+| `extract_validate.py` | Mid-chain schema + domain check (`assert_extraction_usable`) for model rotation |
+| `openrouter_client.py` | Extraction via OpenRouter model chain; short-circuit + mid-chain validation |
 | `fallback_client.py` | `OpenRouterWithOllamaFallback` — compose Ollama after OpenRouter exhaustion |
-| `ollama_client.py` | Local Ollama `/api/chat` (`format: json`, `think: false`, no redirects) |
+| `ollama_client.py` | Local Ollama `/api/chat` (`format: json`, `think: false`, `num_predict`, `keep_alive`) |
 | `ollama_url.py` | `OLLAMA_BASE_URL` loopback allowlist (SSRF guard; remote opt-in) |
 | `errors.py` | `RECOVERABLE_LLM_ERRORS`, `OpenRouterChainExhausted` |
 | `error_messages.py` | User-facing messages for 429 / API key / timeout / Ollama / connection |
@@ -140,12 +143,12 @@ tests/                      # pytest suite
 |------|------|
 | `routes/postings.py` | `GET/POST /` ingest; `GET/POST /postings/<id>/edit` review/update |
 | `routes/analysis.py` | `GET/POST /analysis` descriptive queries + chart export |
-| `routes/prediction.py` | `GET/POST /prediction` forecast UI |
-| `templates/base.html` | Layout, nav, flash area, CSS link |
+| `routes/prediction.py` | `GET/POST /prediction` (fake) and `/prediction/database` (live aggregates) |
+| `templates/base.html` | Layout, nav (Add / Analysis / Prediction fake / Prediction database), flash, CSS |
 | `templates/postings/new.html` | Paste + file upload form |
-| `templates/postings/edit.html` | Editable extracted fields + English skills |
+| `templates/postings/edit.html` | Editable extracted fields + English skills (source of truth for links) |
 | `templates/analysis.html` | Analysis form + result tables |
-| `templates/prediction.html` | Prediction form + run summary (incl. shortlist meaning) |
+| `templates/prediction.html` | Shared prediction form + run summary (source-specific copy) |
 | `static/css/main.css` | Navy / dark red / dark gray / light gray design tokens |
 
 ### Migrations & tests
@@ -156,7 +159,7 @@ tests/                      # pytest suite
 | `alembic/versions/20260726_0002_…` | `country`, `city` |
 | `alembic/versions/20260726_0003_…` | `role_title_en`, `display_name_en` |
 | `alembic/versions/20260726_0004_…` | `forecast_runs`, `forecast_results` |
-| `tests/` | Config, ingest, OpenRouter/Ollama fallback (mocked), analysis, prediction, Flask routes, exports |
+| `tests/` | Config, ingest, OpenRouter/Ollama fallback (mocked), analysis, prediction (fake + DatabaseSource), Flask routes, exports |
 
 ---
 
@@ -187,11 +190,11 @@ flowchart TD
 1. **Startup** — validate env; Alembic migrates to `head`.
 2. **Input** — CLI: file path. Web: paste and/or `.txt` upload (file wins if present).
 3. **Dedup** — SHA-256 of stripped text; if known, skip LLM and return existing row.
-4. **LLM extraction** — fixed JSON schema; one successful call: `MODEL` → `FALLBACK_MODEL` → optional `FALLBACK_MODEL2`/`3` → then local Ollama (`qwen3.5:latest` by default, thinking off) if enabled.
-5. **Validation** — Pydantic schema, then domain rules.
+4. **LLM extraction** — fixed JSON schema; one successful call: `MODEL` → `FALLBACK_MODEL` → optional `FALLBACK_MODEL2`/`3` → then local Ollama if enabled. Short-circuit flags can skip remaining OpenRouter models after 429 / parse error / timeout. Mid-chain `assert_extraction_usable` rejects junk payloads so the next model can try.
+5. **Validation** — Pydantic schema, then domain rules (also re-checked in `ExtractionService`).
 6. **English labels** — from extract JSON + glossary override (no extra translation API calls)
 7. **Persistence** — posting + skills (unique on lowercase English name) + M2M links
-8. **Web only** — open review page; if user corrects translations, save real original→English pairs to glossary (skip English→English).
+8. **Web only** — open review page; English skills list is the source of truth for posting↔skill links; glossary saves real original→English corrections (skip English→English).
 
 ### Descriptive analysis flow
 
@@ -201,11 +204,11 @@ flowchart TD
 
 ### Prediction / forecasting flow
 
-1. CLI menu 2 or web `/prediction` — choose training window (12/24/36), horizons (3/6/12), models (one/some/all).
-2. Data source from `PREDICTION_DATA_SOURCE`: **`fake`** only today (`data/fake/` aggregates). `database` is rejected at config / factory until implemented.
+1. CLI menu 2, web `/prediction` (fake), or web `/prediction/database` — choose training window (12/24/36), horizons (3/6/12), models (one/some/all). Defaults favor `baseline` + `prophet` + `arima`.
+2. Data source: UI tabs pass `fake` or `database` explicitly; CLI uses `PREDICTION_DATA_SOURCE` (`fake` default; `database` allowed).
 3. Historical top-K roles/skills by posting volume become forecast targets (UI labels these “Top roles / Top skills”; not model ranking).
 4. Baseline + selected models forecast role demand, skill demand, and avg salary per role.
-5. Soft-fail per series; save `forecast_runs` / `forecast_results`; export `docs/prediction/model_results.md`.
+5. Soft-fail per series; save `forecast_runs` / `forecast_results`; export `docs/prediction/model_results_fake.md` or `model_results_database.md`.
 
 ---
 
@@ -231,7 +234,7 @@ raw posting text (str)
 | 5 | DTO + `validate_extraction_dto` | Schema + business rules |
 | 6 | Extract JSON + glossary | English role title and skills (no second LLM round-trip) |
 | 7 | Save session | `JobPostingRepository.save` + skill get_or_create; commit via `session_scope` |
-| 8 | Web edit (optional) | `update_review_fields`; glossary only for corrected non-identity translations |
+| 8 | Web edit (optional) | `update_review_fields`; form `skills_en` drives linked skills; glossary for corrected non-identity translations |
 
 ### Field mapping (high level)
 
@@ -241,7 +244,7 @@ raw posting text (str)
 | `role_title_en` | same extract call + glossary | Same as title if already English |
 | salary, deadline, location, country, city | LLM | optional |
 | `work_type`, nondiscrimination flag | LLM | enum / bool |
-| `skills` / `skills_en` | same extract call + glossary | DB skill `name` = lowercase English |
+| `skills` / `skills_en` | same extract call + glossary | DB skill `name` = lowercase English; review form EN list is source of truth |
 | `display_name` / `display_name_en` | first-seen original + English | on `skills` |
 | `content_hash`, `raw_text`, `date_added` | app | not from LLM inventively |
 
@@ -289,7 +292,8 @@ pytest
 | Flask insert + review/edit UI | Done |
 | Clearer AI error messages (429, key, Ollama timeout/unreachable, network) | Done |
 | Local Ollama fallback after OpenRouter exhaustion | Done (`OLLAMA_*` env; thinking disabled for qwen3.x) |
+| Mid-chain extract validation + OpenRouter short-circuit knobs | Done |
 | Alembic migrations + pytest | Done |
 | Descriptive analysis UI + README charts | Done |
-| Forecasting (fake data source + multi-model + persist/export) | Done |
-| Forecasting on live DB aggregates | Not ready — `PREDICTION_DATA_SOURCE=database` fail-closed at startup |
+| Forecasting on fake data + multi-model + persist/export | Done (`/prediction` → `model_results_fake.md`) |
+| Forecasting on live DB aggregates | Done (`/prediction/database` + `PREDICTION_DATA_SOURCE=database` → `model_results_database.md`) |
