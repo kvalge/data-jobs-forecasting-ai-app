@@ -48,7 +48,7 @@ Job postings are entered manually (copy-paste or `.txt` upload), covering a broa
 
 ## Project status
 
-Core features are implemented: LLM extract/save, review/edit, descriptive analysis on live Postgres, and forecasting on both **fake** series (`data/fake/`) and **database** aggregates from saved postings. With little real posting history, fake data remains the practical default for full multi-month forecasts; the database prediction tab works when enough postings exist over time.
+Core features are implemented: LLM extract/save, review/edit, descriptive analysis on live Postgres, and forecasting on both **fake** series (`data/fake/`) and **database** aggregates from saved postings. With little real posting history, fake data remains the practical default for full multi-month forecasts; the database prediction tab works when enough postings exist over time (sparse series often finish as `completed_with_errors` — some model/target forecasts fail, others still save).
 
 ## Prerequisites
 
@@ -102,20 +102,23 @@ Core features are implemented: LLM extract/save, review/edit, descriptive analys
    OLLAMA_FALLBACK_ENABLED=true
    OLLAMA_BASE_URL=http://127.0.0.1:11434
    OLLAMA_MODEL=llama3.2:latest
-   OLLAMA_TIMEOUT_SECONDS=120
+   OLLAMA_TIMEOUT_SECONDS=180
    OLLAMA_KEEP_ALIVE=10m
+   OLLAMA_ALLOW_REMOTE=false
+   LLM_METADATA_LOG_ENABLED=true
+   LLM_METADATA_LOG_PATH=logs/llm_requests.ndjson
    ```
 
-   - `LLM_PROVIDER_MODE`: `openrouter_ollama` (default) tries OpenRouter models then optional Ollama; `ollama_only` uses local Ollama only (no OpenRouter API key required).
+   - `LLM_PROVIDER_MODE`: `openrouter_ollama` (default) tries OpenRouter models then optional Ollama; `ollama_only` uses local Ollama only (no OpenRouter API key required). Aliases `openrouter` / `ollama` are accepted.
    - `DATABASE_URL` is always required.
    - For `openrouter_ollama`: `OPENROUTER_API_KEY`, `MODEL`, and `FALLBACK_MODEL` are required (non-empty).
    - **Latency-oriented model chain (free tier):** put the **fastest/smallest** model first (e.g. a “nano” free model), then a mid-size fallback. Prefer **2–3** OpenRouter models over 4 when they share free-tier quota; demote or drop models that often hang then fail. Example order: nano → super → (optional) larger last. Do not put a huge “ultra” model first unless you accept multi-minute waits on failure.
    - `FALLBACK_MODEL2` and `FALLBACK_MODEL3` are optional; when set, they are tried if earlier OpenRouter models fail (unless a short-circuit applies).
    - `OPENROUTER_TIMEOUT_SECONDS` (default `30`) fail-fasts a stuck OpenRouter call so the next model / Ollama can run.
    - `LLM_MAX_TOKENS` (default `1024`) caps OpenRouter `max_tokens` and Ollama `num_predict` to avoid runaway completions (2048+ often truncates JSON and wastes time).
-   - `OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT` / `_ON_PARSE_ERROR` / `_ON_TIMEOUT` (default `true`): after 429, truncated/non-JSON, or timeout, skip remaining OpenRouter models and go straight to Ollama when enabled. Set `false` if you use paid models that should all be tried.
+   - `OPENROUTER_SHORTCIRCUIT_ON_RATE_LIMIT` / `_ON_PARSE_ERROR` / `_ON_TIMEOUT` (default `true`): after 429, truncated/non-JSON, or timeout, skip remaining OpenRouter models and go straight to Ollama when enabled. Schema/domain validation failures still rotate to the **next OpenRouter model** (they do not short-circuit to Ollama). Set short-circuit flags `false` if you use paid models that should all be tried.
    - After **all** OpenRouter models fail (or short-circuit), the app tries local **Ollama** when `OLLAMA_FALLBACK_ENABLED=true` (default). Fallback is composed in the LLM factory (`OpenRouterWithOllamaFallback`), not nested inside the OpenRouter client. In `ollama_only` mode, Ollama is the only provider. Requires Ollama running (`ollama serve`).
-   - Ollama calls use `think: false` (needed for qwen3.x so chain-of-thought does not blow past the timeout). Prefer `OLLAMA_TIMEOUT_SECONDS=120` (or higher for larger local models).
+   - Ollama calls use `think: false` (needed for qwen3.x so chain-of-thought does not blow past the timeout). Code default `OLLAMA_TIMEOUT_SECONDS` is `180` (raise for larger local models).
    - For **faster local fallback**, use a smaller pulled model (example `llama3.2:latest`; code default `qwen3.5:latest` is stronger but slower) and warm it before demos: `ollama run <model>`. `OLLAMA_KEEP_ALIVE` (default `10m`) keeps the model loaded between calls.
    - `OLLAMA_BASE_URL` must be loopback by default (`127.0.0.1`, `localhost`, or `::1`) to avoid SSRF. Set `OLLAMA_ALLOW_REMOTE=true` only for a trusted remote Ollama.
    - `SECRET_KEY` is required for the Flask UI unless `FLASK_ENV=development` (known placeholders are rejected). Use a long random value for anything beyond trusted local use.
@@ -167,7 +170,7 @@ python -m src.main
 ```
 
 - **Add job posting:** enter a path to a UTF-8 `.txt` file. Re-submitting the same text skips extraction (content hash).
-- **Run prediction:** choose training window (12/24/36 months), horizons (3/6/12), and models. Defaults are **baseline + prophet + arima** (faster demos). Opt in to the full set (also sarima, rf, hgb) via checkboxes or CLI `all`. Results are saved to `forecast_runs` / `forecast_results`.
+- **Run prediction:** choose training window (12/24/36 months; UI default 24), horizons (3/6/12), and models. Defaults are **baseline + prophet + arima** (faster demos). Opt in to the full set (also sarima, rf, hgb) via checkboxes or CLI `all`. Results are saved to `forecast_runs` / `forecast_results`. Run status is `completed`, `completed_with_errors` (some series failed but rows were saved), or `failed`.
 
 ## Fake data for prediction
 
@@ -191,10 +194,10 @@ Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`). Th
 - Uploads must be UTF-8 `.txt` (other extensions and binary content are rejected). Mutating forms are CSRF-protected.
 - If a file is uploaded, it is used instead of the pasted text.
 - After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and English skills.
-- Saving edits updates the database. The English skills list on the review form is the source of truth for which skills stay linked to the posting. If you correct a non-English → English translation, that pair is saved to `glossary/original_en.tsv` (English→English pairs are skipped; glossary is not filled on initial extract).
-- Open **Analysis** (`/analysis`) to query top companies, top English roles, salary min/avg/max (nulls excluded), and top English skills. Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).
-- Open **Prediction (fake)** (`/prediction`) for forecasts on `data/fake/` series, or **Prediction (database)** (`/prediction/database`) for the same models on aggregates from saved job postings (by `date_added`). Default model selection is `baseline`, `prophet`, and `arima`; choose more (or all) explicitly. Outcomes are stored in PostgreSQL; markdown exports go to `docs/prediction/model_results_fake.md` or `model_results_database.md`. The “Top roles / Top skills” lines are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
-- Success, duplicate, and error messages appear as flash banners.
+- Saving edits updates the database. The English skills list on the review form is the source of truth for which skills stay linked to the posting (both `skills` and `skills_en` are set from that list). Glossary updates from the review page apply when you correct **role title → role_title_en** (identity pairs are skipped; the skill list alone does not add glossary rows). Glossary is not filled on initial extract.
+- Open **Analysis** (`/analysis`) to query top companies, top English roles, salary min/avg/max (nulls excluded), and top English skills (Top N default 10, range 1–50). Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).
+- Open **Prediction (fake)** (`/prediction`) for forecasts on `data/fake/` series, or **Prediction (database)** (`/prediction/database`) for the same models on aggregates from saved job postings (by `date_added`). Default model selection is `baseline`, `prophet`, and `arima`; choose more (or all) explicitly. Outcomes are stored in PostgreSQL; markdown exports go to `docs/prediction/model_results_fake.md` or `model_results_database.md` (rows within each model ordered by predicted value). The UI shows a **Result preview** (up to 80 rows, ordered model → type → value) and **Recent runs**. Status may be `completed`, `completed_with_errors`, or `failed`. The “Top roles / Top skills” lines are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
+- Success, duplicate, and error messages appear as flash banners (`completed_with_errors` is treated as success with optional warning flashes).
 - The CLI remains fully functional alongside the web UI.
 
 ## Run tests

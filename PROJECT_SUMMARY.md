@@ -53,9 +53,9 @@ tests/                      # pytest suite
 | `alembic.ini` | Alembic config (URL injected from `.env`) |
 | `glossary/original_en.tsv` | User-corrected original → English pairs (no en→en) |
 | `scripts/generate_fake_job_market.py` | Builds `data/fake/` series for forecasting |
-| `docs/prediction/model_results_fake.md` | Latest fake-data prediction export |
-| `docs/prediction/model_results_database.md` | Latest database prediction export |
-| `docs/prediction/model_results.md` | Legacy pointer to the two files above |
+| `docs/prediction/model_results_fake.md` | Latest fake-data prediction export (live writer target) |
+| `docs/prediction/model_results_database.md` | Latest database prediction export (live writer target) |
+| `docs/prediction/model_results.md` | Stale leftover dump (not written by current export code) |
 | `.cursor/` | Agent rules and implementation plans |
 
 ### Entry & config
@@ -109,7 +109,8 @@ tests/                      # pytest suite
 | `job_posting_repository.py` | Save/get/delete/update (flush-only; no commit) |
 | `skill_repository.py` | `get_or_create` by lowercase English `name`; savepoint on unique race |
 | `analysis_repository.py` | Descriptive SQL aggregates (companies, roles, salary, skills) |
-| `forecast_repository.py` | Persist/list prediction runs and results (flush-only) |
+| `forecast_repository.py` | Persist/list prediction runs and results (flush-only; preview ordered model → type → value) |
+| `json_safe.py` | Coerce NaN/Inf for Postgres-safe JSON (`meta` / metrics) |
 
 ### Prediction (`src/prediction/`)
 
@@ -119,7 +120,10 @@ tests/                      # pytest suite
 | `fake_file_source.py` | Loads monthly/weekly aggregates from `data/fake/` |
 | `database_source.py` | Aggregates live `job_postings` / skills by `date_added` (same schemas as fake) |
 | `baseline/` | MA, growth, market share, linear trend |
-| `models/` | Prophet, SARIMA, ARIMA, RF, HGB adapters |
+| `models/registry.py` | `DEFAULT_MODELS` (`baseline`, `prophet`, `arima`) + `ALL_RUNNABLE` |
+| `models/base.py` | Shared series helpers for adapters |
+| `models/classical.py` | Prophet, SARIMA, ARIMA adapters |
+| `models/ml.py` | RF, HGB adapters |
 
 ### LLM (`src/llm/`)
 
@@ -190,25 +194,25 @@ flowchart TD
 1. **Startup** — validate env; Alembic migrates to `head`.
 2. **Input** — CLI: file path. Web: paste and/or `.txt` upload (file wins if present).
 3. **Dedup** — SHA-256 of stripped text; if known, skip LLM and return existing row.
-4. **LLM extraction** — fixed JSON schema; one successful call: `MODEL` → `FALLBACK_MODEL` → optional `FALLBACK_MODEL2`/`3` → then local Ollama if enabled. Short-circuit flags can skip remaining OpenRouter models after 429 / parse error / timeout. Mid-chain `assert_extraction_usable` rejects junk payloads so the next model can try.
+4. **LLM extraction** — fixed JSON schema; one successful call: `MODEL` → `FALLBACK_MODEL` → optional `FALLBACK_MODEL2`/`3` → then local Ollama if enabled. Short-circuit flags can skip remaining OpenRouter models after 429 / parse error / timeout (then Ollama). Mid-chain `assert_extraction_usable` rejects junk payloads so the **next OpenRouter model** can try (validation failures do not short-circuit to Ollama). Code defaults: OpenRouter timeout `30`s, `LLM_MAX_TOKENS=1024`, Ollama timeout `180`s, Ollama model `qwen3.5:latest` when unset.
 5. **Validation** — Pydantic schema, then domain rules (also re-checked in `ExtractionService`).
 6. **English labels** — from extract JSON + glossary override (no extra translation API calls)
 7. **Persistence** — posting + skills (unique on lowercase English name) + M2M links
-8. **Web only** — open review page; English skills list is the source of truth for posting↔skill links; glossary saves real original→English corrections (skip English→English).
+8. **Web only** — open review page; English skills list is the source of truth for posting↔skill links (copied into both `skills` and `skills_en`); glossary saves role-title original→English corrections (skip identity pairs; skill textarea alone does not add glossary rows).
 
 ### Descriptive analysis flow
 
-1. Web `/analysis` — choose companies / roles / salary / skills and top N.
+1. Web `/analysis` — choose companies / roles / salary / skills and top N (default 10, clamp 1–50).
 2. `AnalysisRepository` (via `analysis_service`) queries PostgreSQL; null salaries excluded per metric.
 3. Results shown as tables; matching PNGs written to `docs/analysis/` (README embeds them).
 
 ### Prediction / forecasting flow
 
-1. CLI menu 2, web `/prediction` (fake), or web `/prediction/database` — choose training window (12/24/36), horizons (3/6/12), models (one/some/all). Defaults favor `baseline` + `prophet` + `arima`.
+1. CLI menu 2, web `/prediction` (fake), or web `/prediction/database` — choose training window (12/24/36; UI default 24), horizons (3/6/12), models (one/some/all). Defaults favor `baseline` + `prophet` + `arima`; top-K shortlist default 15.
 2. Data source: UI tabs pass `fake` or `database` explicitly; CLI uses `PREDICTION_DATA_SOURCE` (`fake` default; `database` allowed).
 3. Historical top-K roles/skills by posting volume become forecast targets (UI labels these “Top roles / Top skills”; not model ranking).
 4. Baseline + selected models forecast role demand, skill demand, and avg salary per role.
-5. Soft-fail per series; save `forecast_runs` / `forecast_results`; export `docs/prediction/model_results_fake.md` or `model_results_database.md`.
+5. Soft-fail per series → run status `completed` / `completed_with_errors` / `failed`; save `forecast_runs` / `forecast_results`; export `docs/prediction/model_results_fake.md` or `model_results_database.md` (within each model, highest predicted value first). UI Result preview orders model → type → value (limit 80); Recent runs limit 8.
 
 ---
 
@@ -234,7 +238,7 @@ raw posting text (str)
 | 5 | DTO + `validate_extraction_dto` | Schema + business rules |
 | 6 | Extract JSON + glossary | English role title and skills (no second LLM round-trip) |
 | 7 | Save session | `JobPostingRepository.save` + skill get_or_create; commit via `session_scope` |
-| 8 | Web edit (optional) | `update_review_fields`; form `skills_en` drives linked skills; glossary for corrected non-identity translations |
+| 8 | Web edit (optional) | `update_review_fields`; form `skills_en` drives linked skills; glossary mainly from role-title corrections |
 
 ### Field mapping (high level)
 
@@ -296,4 +300,4 @@ pytest
 | Alembic migrations + pytest | Done |
 | Descriptive analysis UI + README charts | Done |
 | Forecasting on fake data + multi-model + persist/export | Done (`/prediction` → `model_results_fake.md`) |
-| Forecasting on live DB aggregates | Done (`/prediction/database` + `PREDICTION_DATA_SOURCE=database` → `model_results_database.md`) |
+| Forecasting on live DB aggregates | Done (`/prediction/database` + `PREDICTION_DATA_SOURCE=database` → `model_results_database.md`; sparse data often `completed_with_errors`) |
