@@ -1,4 +1,10 @@
 # Pinned for reproducible installs (versions from a known-good local env).
+#
+# Python version:
+#   Use:        3.14.3  (known-good with these pins; `python --version`)
+#   Requires:   >=3.11  (pandas / numpy / scikit-learn require 3.11+)
+#   Recommended range: 3.11 – 3.14
+#
 # On Windows, Prophet may need extra native tooling (see README).
 psycopg2-binary==2.9.11
 python-dotenv==1.2.2

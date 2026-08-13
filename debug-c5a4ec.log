@@ -1,1 +1,0 @@
-{"sessionId": "c5a4ec", "runId": "pre-fix", "hypothesisId": "A", "location": "posting_review_service.py:update_posting_review", "message": "Review update skill list lengths", "data": {"posting_id": 38, "original_skills_len": 0, "skills_en_len": 1, "lengths_match": false, "original_empty": true, "skills_en_nonempty": true}, "timestamp": 1785360520725}

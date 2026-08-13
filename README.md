@@ -2,11 +2,13 @@
 
 An LLM-powered application that extracts structured data from data/AI job postings and forecasts emerging role and skill trends.
 
+For architecture, module map, and process flows, see [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md).
+
 ## What it does
 
-Paste a job posting's text into the app (CLI or web UI). An LLM (via OpenRouter, with local Ollama as last resort) extracts structured fields — company, role title (plus English), responsibilities, requirements, application deadline, salary, location, work type (onsite/hybrid/remote), nondiscrimination disclaimer (y/n), and required skills (plus English) — in **one successful API call** (extra OpenRouter models, then Ollama, only if earlier calls fail), then saves them to a PostgreSQL database.
+Paste a job posting's text into the app (CLI or web UI). An LLM (via OpenRouter, with local Ollama as last resort) extracts structured fields — company, role title (translated if not already in English and transformed short form if needed to a new column), responsibilities, requirements, application deadline, salary, location, work type (onsite/hybrid/remote), nondiscrimination disclaimer (y/n), and required skills — in **one successful API call** (extra OpenRouter models, then Ollama, only if earlier calls fail), then saves them to a PostgreSQL database.
 
-Once enough postings are collected, the app analyzes the data (**top companies**, **top English roles**, **salary min/avg/max**, and **top English skills**) to surface trends in the data/AI job market — and can point to forecasted momentum for specific skills or roles over the next 3, 6, or 12 months. Location/country/city are stored on each posting for review, but they are not separate analysis charts yet.
+Once enough postings are collected, the app analyzes the data (**top companies**, **top short format roles**, **salary min/avg/max**, and **top skills**) to surface trends in the data/AI job market — and can point to forecasted momentum for specific skills or roles over the next 3, 6, or 12 months.
 
 ## Sample analyses
 
@@ -19,7 +21,7 @@ Charts below are generated from the database when you run **Analysis** in the we
 
 ![Top companies](docs/analysis/top_companies.png)
 
-### Top roles (English)
+### Top roles (short format)
 
 ![Top roles](docs/analysis/top_roles.png)
 
@@ -37,14 +39,14 @@ Charts below are generated from the database when you run **Analysis** in the we
 - PostgreSQL
 - SQLAlchemy + Alembic (schema migrations)
 - Flask + Jinja2 (web UI for inserting postings, descriptive analysis, and prediction)
-- OpenRouter API (free-tier LLM) for structured extraction, with local Ollama when OpenRouter is exhausted (`OLLAMA_MODEL`; code default `qwen3.5:latest`, faster example `llama3.2:latest`)
+- OpenRouter API (free-tier LLM) for structured extraction, with local Ollama when OpenRouter is exhausted
 - Pydantic for schema validation
 - matplotlib (analysis chart PNGs for the UI export / README)
 - pandas / numpy / scikit-learn / statsmodels / Prophet (time series prediction)
 
 ## Scope
 
-Job postings are entered manually (copy-paste or `.txt` upload), covering a broad range of search terms: engineer, analyst, insener, analüütik, plus AI/data-related roles.
+Job postings are entered manually (copy-paste or `.txt` upload)
 
 ## Project status
 
@@ -52,7 +54,7 @@ Core features are implemented: LLM extract/save, review/edit, descriptive analys
 
 ## Prerequisites
 
-- Python 3.10+ recommended
+- Python **3.14.3** recommended (known-good with `requirements.txt` pins); **3.11+** required (`pandas` / `numpy` / `scikit-learn`)
 - A running PostgreSQL database you can connect to
 - An OpenRouter API key and model IDs for primary + fallback extraction (unless `LLM_PROVIDER_MODE=ollama_only`)
 - Optional: [Ollama](https://ollama.com/) with your `OLLAMA_MODEL` pulled for local fallback when OpenRouter is exhausted
@@ -193,9 +195,9 @@ Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`). Th
 - Paste posting text and/or upload a `.txt` file, then **Extract and save**.
 - Uploads must be UTF-8 `.txt` (other extensions and binary content are rejected). Mutating forms are CSRF-protected.
 - If a file is uploaded, it is used instead of the pasted text.
-- After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and English skills.
-- Saving edits updates the database. The English skills list on the review form is the source of truth for which skills stay linked to the posting (both `skills` and `skills_en` are set from that list). Glossary updates from the review page apply when you correct **role title → role_title_en** (identity pairs are skipped; the skill list alone does not add glossary rows). Glossary is not filled on initial extract.
-- Open **Analysis** (`/analysis`) to query top companies, top English roles, salary min/avg/max (nulls excluded), and top English skills (Top N default 10, range 1–50). Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).
+- After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and skills.
+- Saving edits updates the database. The skills list on the review form is the source of truth for which skills stay linked to the posting (both `skills` and `skills_en` are set from that list). Glossary updates from the review page apply when you correct **role title → role_title_en** (translation or shorter role title, identity pairs are skipped; the skill list alone does not add glossary rows). Glossary is not filled on initial extract.
+- Open **Analysis** (`/analysis`) to query top companies, top roles, salary min/avg/max (nulls excluded), and top skills (Top N default 10, range 1–50). Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).
 - Open **Prediction (fake)** (`/prediction`) for forecasts on `data/fake/` series, or **Prediction (database)** (`/prediction/database`) for the same models on aggregates from saved job postings (by `date_added`). Default model selection is `baseline`, `prophet`, and `arima`; choose more (or all) explicitly. Outcomes are stored in PostgreSQL; markdown exports go to `docs/prediction/model_results_fake.md` or `model_results_database.md` (rows within each model ordered by predicted value). The UI shows a **Result preview** (up to 80 rows, ordered model → type → value) and **Recent runs**. Status may be `completed`, `completed_with_errors`, or `failed`. The “Top roles / Top skills” lines are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
 - Success, duplicate, and error messages appear as flash banners (`completed_with_errors` is treated as success with optional warning flashes).
 - The CLI remains fully functional alongside the web UI.
