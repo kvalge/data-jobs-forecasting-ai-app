@@ -271,6 +271,7 @@ def run_prediction(
             status=status,
             summary=summary,
             results=result_rows,
+            errors=errors,
         )
         summary["results_export_path"] = str(export_path)
         logger.info("Wrote model results markdown to %s", export_path)

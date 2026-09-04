@@ -9,14 +9,35 @@
     Forecast popular roles, skills, and average salary per role for the next 3 / 6 / 12 months.
     {% if data_source == 'database' %}
     Training data is aggregated from <strong>saved job postings</strong> in PostgreSQL
-    (by <code>date_added</code>). Sparse history may limit model quality until more postings exist.
+    (by <code>date_added</code>). Sparse history often causes soft-fail warnings
+    (not enough months for a model) until more postings exist over time.
     {% else %}
-    Training data comes from synthetic series under <code>data/fake/</code>.
+    Training data comes from synthetic series under <code>data/fake/</code>
+    (typically 36 months — enough for most models).
     Use <a href="{{ url_for('prediction.prediction_database_page') }}">Prediction (database)</a>
     to forecast from real postings instead.
     {% endif %}
-    Results are stored in the database.
+    Results are stored in the database and exported to markdown under <code>docs/prediction/</code>.
   </p>
+
+  <details class="hint">
+    <summary>What each model does (and minimum history)</summary>
+    <ul>
+      {% for m in all_models %}
+      <li>
+        <code>{{ m }}</code> —
+        {{ model_blurbs.get(m, '') }}
+        {% if model_min_months.get(m) %}
+        (min {{ model_min_months[m] }} months)
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <p>
+      If a series is shorter than the minimum, that model/target is skipped with a warning;
+      other targets and models still run (<code>completed_with_errors</code>).
+    </p>
+  </details>
 
   <form method="post" action="{{ url_for(form_endpoint) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -27,6 +48,7 @@
         <option value="{{ w }}" {% if w == training_window %}selected{% endif %}>{{ w }} months</option>
         {% endfor %}
       </select>
+      <p class="hint">How many recent months of history to use. Does not invent data that is not there.</p>
     </div>
 
     <fieldset class="analysis-options">
@@ -35,9 +57,10 @@
       <label class="checkbox-label">
         <input type="checkbox" name="horizon" value="{{ h }}"
           {% if h in selected_horizons %}checked{% endif %}>
-        {{ h }} months
+        {{ h }} months ahead
       </label>
       {% endfor %}
+      <p class="hint">Only used by forecast models (not baseline). Each selected horizon keeps that future month’s predicted value.</p>
     </fieldset>
 
     <fieldset class="analysis-options">
@@ -66,10 +89,11 @@
 {% if outcome %}
 <section class="panel results-panel">
   <h2>Run summary</h2>
+  <p class="hint">{{ status_explanation }}</p>
   <table class="data-table">
     <tbody>
       <tr><th>Run id</th><td>{{ outcome.run_id }}</td></tr>
-      <tr><th>Status</th><td>{{ outcome.status }}</td></tr>
+      <tr><th>Status</th><td><code>{{ outcome.status }}</code></td></tr>
       <tr>
         <th>Training data</th>
         <td>
@@ -90,6 +114,43 @@
       <tr><th>Warnings</th><td>{{ outcome.summary.error_count }}</td></tr>
     </tbody>
   </table>
+
+  {% if baseline_only %}
+  <h3>Baseline only — what these results mean</h3>
+  <p class="hint">
+    You ran <strong>baseline</strong> alone. That is <strong>not</strong> a forecast of future months.
+    It summarizes <em>history inside the training window</em> for the shortlisted roles and skills:
+  </p>
+  <ul class="hint">
+    <li><strong>Value</strong> = latest monthly posting count (most recent month in the window).</li>
+    <li><strong>Horizon</strong> is always <code>0</code>; <strong>Period</strong> is empty.</li>
+    <li>Stored metrics (see DB / export) include moving averages (3 / 6 / 12 months when available),
+      period-over-period growth %, and a simple linear trend (up / down / flat).</li>
+  </ul>
+  <p class="hint">
+    To see future months (3 / 6 / 12), also select forecast models such as
+    <code>arima</code> or <code>prophet</code> (they need enough monthly history per target).
+  </p>
+  {% else %}
+  <h3>How to read forecast results</h3>
+  <ul class="hint">
+    <li><strong>role / skill</strong> — predicted posting volume for that future month.</li>
+    <li><strong>salary_role</strong> — predicted average salary for that role (rounded).</li>
+    <li><strong>baseline_role / baseline_skill</strong> — historical latest count only (horizon 0), if baseline was selected.</li>
+    <li><strong>Horizon</strong> — months ahead (3, 6, or 12). <strong>Period</strong> — calendar month-start of that step.</li>
+  </ul>
+  {% endif %}
+
+  {% if error_details %}
+  <h3>Warnings — why some fits failed</h3>
+  <p class="hint">
+    {{ error_details|length }} model/target fit(s) failed; other combinations may still have results.
+    On the database tab this is usually <strong>too few months of history</strong> for that role, skill, or salary series
+    (Prophet needs ≥6 months, ARIMA/SARIMA ≥8, RF/HGB ≥10).
+    Add more postings over time, or use <code>baseline</code> / models with lower minimums.
+  </p>
+  {% endif %}
+
   {% if outcome.summary.model_timings_seconds %}
   <h3>Time per model</h3>
   <table class="data-table">
@@ -103,7 +164,7 @@
   </table>
   {% endif %}
   {% if outcome.summary.roles or outcome.summary.skills %}
-  <h3>Top roles &amp; top skills (what this means)</h3>
+  <h3>Top roles &amp; top skills (historical shortlist)</h3>
   <p class="hint">
     These lists are <strong>not</strong> the models' forecast ranking of what will be most popular.
     Before forecasting, the app ranks roles and skills by
@@ -125,6 +186,20 @@
 {% if preview_results %}
 <section class="panel results-panel">
   <h2>Result preview</h2>
+  <p class="hint">
+    Up to 80 rows from this run (or the latest run), ordered by model → type → value (highest first).
+    {% if baseline_only %}
+    <strong>Baseline rows:</strong> <strong>Value</strong> is the posting count in the
+    <em>most recent month</em> of the training window for that role or skill
+    (how many times it appeared that month — not a sum over the whole window, and not a future prediction).
+    <strong>Horizon</strong> is <code>0</code>; <strong>Period</strong> is empty because there is no forecast month.
+    {% else %}
+    Forecast rows show predicted demand or salary for a future month.
+    <strong>Baseline</strong> rows (types <code>baseline_role</code> / <code>baseline_skill</code>), if present:
+    <strong>Value</strong> = posting count in the <em>most recent month</em> of the training window only
+    (historical latest count — not a forecast); horizon <code>0</code>, period empty.
+    {% endif %}
+  </p>
   <table class="data-table">
     <thead>
       <tr>
@@ -160,6 +235,11 @@
 {% if recent_runs %}
 <section class="panel results-panel">
   <h2>Recent runs</h2>
+  <p class="hint">
+    <code>completed</code> = all fits OK;
+    <code>completed_with_errors</code> = some fits failed (often short history) but results were saved;
+    <code>failed</code> = no result rows.
+  </p>
   <table class="data-table">
     <thead>
       <tr><th>Id</th><th>Created</th><th>Window</th><th>Status</th><th>Source</th></tr>

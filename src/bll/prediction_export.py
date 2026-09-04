@@ -8,6 +8,13 @@ from pathlib import Path
 from typing import Any
 
 from src.bll.prediction_types import TargetType
+from src.bll.prediction_explanations import (
+    MODEL_BLURBS,
+    MODEL_MIN_MONTHS,
+    explain_prediction_error,
+    is_baseline_only,
+    status_explanation,
+)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _RESULTS_DIR = _PROJECT_ROOT / "docs" / "prediction"
@@ -52,6 +59,7 @@ def export_model_results_markdown(
     summary: dict[str, Any],
     results: list[dict[str, Any]],
     path: Path | None = None,
+    errors: dict[str, str] | None = None,
 ) -> Path:
     """Write model results (sorted by value within each model) to markdown.
 
@@ -100,6 +108,7 @@ def export_model_results_markdown(
         data_source_note = "See `PREDICTION_DATA_SOURCE` in `.env`."
         ui_hint = "**Prediction**"
 
+    models = list(summary.get("models") or [])
     lines: list[str] = [
         f"# {title}",
         "",
@@ -108,18 +117,56 @@ def export_model_results_markdown(
         "",
         f"- **Generated at:** {datetime.now().isoformat(timespec='seconds')}",
         f"- **Run id:** {run_id if run_id is not None else '—'}",
-        f"- **Status:** {status}",
+        f"- **Status:** {status} — {status_explanation(status)}",
         f"- **Training data source:** {data_source_label}",
         f"- **Training window (months):** {summary.get('training_window_months', '—')}",
         f"- **Horizons:** {', '.join(str(h) for h in summary.get('horizons') or []) or '—'}",
-        f"- **Models:** {', '.join(summary.get('models') or []) or '—'}",
+        f"- **Models:** {', '.join(models) or '—'}",
         f"- **Elapsed (seconds):** {summary.get('elapsed_seconds', '—')}",
         "",
-        "## Training data",
-        "",
-        data_source_note,
+        "## How to read these results",
         "",
     ]
+
+    if is_baseline_only(models):
+        lines.extend(
+            [
+                "**Baseline only:** these rows are a **historical snapshot**, not a prediction "
+                "of future months. `horizon` is `0` and `period` is empty. "
+                "**Value** = latest monthly posting count in the training window. "
+                "Metrics (when present in the DB) include moving averages, growth %, and "
+                "trend direction (up / down / flat).",
+                "",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "- **Forecast models** (`prophet`, `arima`, `sarima`, `rf`, `hgb`): "
+                "**Value** is the predicted posting count (or average salary for "
+                "`salary_role`) for that future month. **Horizon** = months ahead "
+                "(3 / 6 / 12). **Period** = calendar month-start of that forecast step.",
+                "- **Baseline** rows (if included): historical latest counts only "
+                "(`horizon` 0) — not future forecasts.",
+                "- Tree models (`rf`, `hgb`) often stay flat on strong trends; "
+                "prefer `arima` / `prophet` when history is long enough.",
+                "",
+                "### Minimum history (months of data per series)",
+                "",
+            ]
+        )
+        for key, months in MODEL_MIN_MONTHS.items():
+            lines.append(f"- `{key}`: ≥ {months}")
+        lines.append("")
+
+    lines.extend(
+        [
+            "## Training data",
+            "",
+            data_source_note,
+            "",
+        ]
+    )
 
     timings = summary.get("model_timings_seconds") or {}
     if timings:
@@ -151,6 +198,24 @@ def export_model_results_markdown(
             lines.append(f"- **Top skills (historical):** {', '.join(skills)}")
         lines.append("")
 
+    err_map = errors if errors is not None else (summary.get("errors") or {})
+    if err_map:
+        lines.append("## Warnings (soft-fail errors)")
+        lines.append("")
+        lines.append(
+            "Individual model/target fits failed; other rows may still be present. "
+            "The most common cause is **not enough monthly history** for that series."
+        )
+        lines.append("")
+        lines.append("| Target | Error | Why it matters |")
+        lines.append("|--------|-------|----------------|")
+        for key in sorted(err_map.keys()):
+            msg = str(err_map[key])
+            lines.append(
+                f"| `{key}` | {msg} | {explain_prediction_error(key, msg)} |"
+            )
+        lines.append("")
+
     if not by_model:
         lines.extend(
             [
@@ -164,6 +229,10 @@ def export_model_results_markdown(
         for model_name in sorted(by_model.keys()):
             lines.append(f"## Model: `{model_name}`")
             lines.append("")
+            blurb = MODEL_BLURBS.get(model_name)
+            if blurb:
+                lines.append(blurb)
+                lines.append("")
             lines.append("| Type | Target | Horizon | Period | Value |")
             lines.append("|------|--------|---------|--------|-------|")
             for row in by_model[model_name]:

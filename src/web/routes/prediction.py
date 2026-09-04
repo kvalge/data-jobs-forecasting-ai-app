@@ -6,6 +6,7 @@ from flask import Blueprint, flash, render_template, request
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.bll.prediction_history import load_forecast_history
+from src.bll.prediction_explanations import summarize_for_template
 from src.bll.prediction_service import ALLOWED_HORIZONS, ALLOWED_WINDOWS, run_prediction
 from src.prediction.models.registry import ALL_RUNNABLE, DEFAULT_MODELS
 
@@ -85,6 +86,7 @@ def _render_prediction_page(*, data_source: str):
         recent_runs = []
         preview_results = []
 
+    extras = summarize_for_template(outcome)
     return render_template(
         "prediction.html",
         data_source=data_source,
@@ -104,6 +106,11 @@ def _render_prediction_page(*, data_source: str):
         recent_runs=recent_runs,
         preview_results=preview_results,
         default_models=DEFAULT_MODELS,
+        error_details=extras["error_details"],
+        status_explanation=extras["status_explanation"],
+        baseline_only=extras["baseline_only"],
+        model_blurbs=extras["model_blurbs"],
+        model_min_months=extras["model_min_months"],
     )
 
 

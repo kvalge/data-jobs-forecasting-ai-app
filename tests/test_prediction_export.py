@@ -62,11 +62,46 @@ def test_export_model_results_markdown_orders_by_value(tmp_path):
     assert "Prediction model results (fake data)" in text
     assert "Fake / synthetic" in text
     assert "historical" in text.lower()
+    assert "How to read these results" in text
     assert "4124" in text  # salary rounded to whole number
     # Higher role value appears before lower within the rf table
     high_pos = text.index("High")
     low_pos = text.index("Low")
     assert high_pos < low_pos
+
+
+def test_export_includes_errors_and_baseline_note(tmp_path):
+    path = tmp_path / "out.md"
+    out = export_model_results_markdown(
+        run_id=4,
+        status="completed_with_errors",
+        summary={
+            "data_source": "database",
+            "models": ["baseline"],
+            "horizons": [3],
+            "training_window_months": 12,
+        },
+        results=[
+            {
+                "model_name": "baseline",
+                "target_type": "baseline_role",
+                "target_key": "Engineer",
+                "horizon_months": 0,
+                "period_start": None,
+                "predicted_value": 3,
+            }
+        ],
+        path=path,
+        errors={
+            "arima:role:Engineer": "Need at least 8 months of history for ARIMA/SARIMA.",
+        },
+    )
+    text = out.read_text(encoding="utf-8")
+    assert "Baseline only" in text
+    assert "historical snapshot" in text.lower()
+    assert "Warnings (soft-fail errors)" in text
+    assert "arima:role:Engineer" in text
+    assert "enough months" in text.lower() or "8 months" in text
 
 
 def test_export_defaults_to_separate_paths_by_source(tmp_path, monkeypatch):

@@ -174,6 +174,14 @@ python -m src.main
 - **Add job posting:** enter a path to a UTF-8 `.txt` file. Re-submitting the same text skips extraction (content hash).
 - **Run prediction:** choose training window (12/24/36 months; UI default 24), horizons (3/6/12), and models. Defaults are **baseline + prophet + arima** (faster demos). Opt in to the full set (also sarima, rf, hgb) via checkboxes or CLI `all`. Results are saved to `forecast_runs` / `forecast_results`. Run status is `completed`, `completed_with_errors` (some series failed but rows were saved), or `failed`.
 
+### Understanding prediction results
+
+- **Top roles / top skills** on the results page are a **historical shortlist** (highest posting volume in the training window), not a forecast of future popularity. Every selected model forecasts those same targets.
+- **Baseline only:** baseline is a **historical snapshot**, not a future forecast. Result **value** = latest monthly posting count; **horizon** is `0`; metrics include moving averages, growth %, and trend direction (up / down / flat). Select `arima` / `prophet` / etc. to get 3 / 6 / 12‑month ahead predictions.
+- **Forecast models:** **value** = predicted posting count (or average salary for `salary_role`) for that future month; **horizon** = months ahead; **period** = calendar month-start.
+- **Warnings / `completed_with_errors`:** one model on one role/skill/salary series failed; others may still succeed. The usual cause is **not enough monthly history** for that series (Prophet ≥6 months, ARIMA/SARIMA ≥8, RF/HGB ≥10). Common on **Prediction (database)** until you have postings spanning many months. The UI lists each failed target with a short explanation; the markdown export under `docs/prediction/` does too.
+- Prefer **baseline + arima (+ prophet if installed)** when history is short; tree models (`rf`, `hgb`) often stay flat on strong trends.
+
 ## Fake data for prediction
 
 The **Prediction (fake)** UI tab and default CLI source train on synthetic market series under `data/fake/` (gitignored with the rest of `data/`). Generate or refresh with:
@@ -198,7 +206,7 @@ Then open the URL shown in the terminal (typically `http://127.0.0.1:5000/`). Th
 - After save you are taken to a **review/edit** page for company, titles, salary, work type, disclaimer, location/country/city, and skills.
 - Saving edits updates the database. The skills list on the review form is the source of truth for which skills stay linked to the posting (both `skills` and `skills_en` are set from that list). Glossary updates from the review page apply when you correct **role title → role_title_en** (translation or shorter role title, identity pairs are skipped; the skill list alone does not add glossary rows). Glossary is not filled on initial extract.
 - Open **Analysis** (`/analysis`) to query top companies, top roles, salary min/avg/max (nulls excluded), and top skills (Top N default 10, range 1–50). Results show on the page and refresh PNG charts under `docs/analysis/` (linked in [Sample analyses](#sample-analyses) above).
-- Open **Prediction (fake)** (`/prediction`) for forecasts on `data/fake/` series, or **Prediction (database)** (`/prediction/database`) for the same models on aggregates from saved job postings (by `date_added`). Default model selection is `baseline`, `prophet`, and `arima`; choose more (or all) explicitly. Outcomes are stored in PostgreSQL; markdown exports go to `docs/prediction/model_results_fake.md` or `model_results_database.md` (rows within each model ordered by predicted value). The UI shows a **Result preview** (up to 80 rows, ordered model → type → value) and **Recent runs**. Status may be `completed`, `completed_with_errors`, or `failed`. The “Top roles / Top skills” lines are the **historical shortlist** used as forecast targets (by past posting volume), not the models’ predicted ranking.
+- Open **Prediction (fake)** (`/prediction`) for forecasts on `data/fake/` series, or **Prediction (database)** (`/prediction/database`) for the same models on aggregates from saved job postings (by `date_added`). Default model selection is `baseline`, `prophet`, and `arima`; choose more (or all) explicitly. Outcomes are stored in PostgreSQL; markdown exports go to `docs/prediction/model_results_fake.md` or `model_results_database.md`. The UI explains status, baseline-vs-forecast meaning, and each soft-fail warning (e.g. not enough months of history). Result preview shows up to 80 rows (ordered model → type → value). See [Understanding prediction results](#understanding-prediction-results) above.
 - Success, duplicate, and error messages appear as flash banners (`completed_with_errors` is treated as success with optional warning flashes).
 - The CLI remains fully functional alongside the web UI.
 
