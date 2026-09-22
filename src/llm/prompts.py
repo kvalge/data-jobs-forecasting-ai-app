@@ -29,6 +29,7 @@ Rules:
 - Be concise: keep "responsibilities" and "requirements" under ~500 characters each (join bullets with "; ").
 - Prefer short skill tokens (e.g. "Python", "SQL"); do not write paragraphs in skills.
 - "skills_en" must have the same number of items as "skills", in the same order.
+- For "application_deadline", always output YYYY-MM-DD (convert from DD.MM.YYYY / DD/MM/YYYY if the posting uses those).
 - Only extract information that is explicitly stated in the posting text.
 - Never guess, infer, or make up any value that is not clearly present in the text (except translating role_title / skills into English when they are not English).
 - If a field is not mentioned in the posting, use null (or an empty list for skills / skills_en) — do not fill it with a plausible-sounding guess.

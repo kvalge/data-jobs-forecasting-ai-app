@@ -1,10 +1,11 @@
 # job_posting_extraction_dto.py
 from datetime import date
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.domain.work_type import WorkType
+from src.llm.date_normalize import normalize_optional_date
 
 # Shared bounds for LLM output and review UI (untrusted input).
 MAX_SHORT_TEXT = 200
@@ -76,3 +77,9 @@ class JobPostingExtractionDTO(BaseModel):
         max_length=MAX_SKILLS,
         description="English forms of skills (same order as skills; same text when already English)",
     )
+
+    @field_validator("application_deadline", mode="before")
+    @classmethod
+    def _coerce_application_deadline(cls, value: Any) -> Any:
+        """Accept EU-style deadlines (e.g. 21.10.2026) from LLM JSON."""
+        return normalize_optional_date(value)
