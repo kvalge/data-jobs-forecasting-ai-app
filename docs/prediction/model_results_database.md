@@ -2,18 +2,28 @@
 
 Auto-generated when you run **Prediction (database)** in the web UI or CLI. Rows within each model are ordered by predicted value (highest first).
 
-- **Generated at:** 2026-09-09T15:33:04
-- **Run id:** 34
-- **Status:** completed — All selected model/target fits succeeded.
+- **Generated at:** 2026-10-24T16:28:03
+- **Run id:** 35
+- **Status:** completed_with_errors — Some model/target fits failed (often not enough monthly history), but other result rows were still saved. See warnings below.
 - **Training data source:** Real database aggregates (PostgreSQL `job_postings` / skills)
 - **Training window (months):** 12
 - **Horizons:** 3
-- **Models:** baseline
-- **Elapsed (seconds):** 0.31
+- **Models:** baseline, prophet, arima
+- **Elapsed (seconds):** 0.4
 
 ## How to read these results
 
-**Baseline only:** these rows are a **historical snapshot**, not a prediction of future months. `horizon` is `0` and `period` is empty. **Value** = latest monthly posting count in the training window. Metrics (when present in the DB) include moving averages, growth %, and trend direction (up / down / flat).
+- **Forecast models** (`prophet`, `arima`, `sarima`, `rf`, `hgb`): **Value** is the predicted posting count (or average salary for `salary_role`) for that future month. **Horizon** = months ahead (3 / 6 / 12). **Period** = calendar month-start of that forecast step.
+- **Baseline** rows (if included): historical latest counts only (`horizon` 0) — not future forecasts.
+- Tree models (`rf`, `hgb`) often stay flat on strong trends; prefer `arima` / `prophet` when history is long enough.
+
+### Minimum history (months of data per series)
+
+- `prophet`: ≥ 6
+- `arima`: ≥ 8
+- `sarima`: ≥ 8
+- `rf`: ≥ 10
+- `hgb`: ≥ 10
 
 ## Training data
 
@@ -23,14 +33,113 @@ Models were trained on series built from saved job postings in the database. Fak
 
 | Model | Seconds |
 |-------|---------|
-| `baseline` | 0.145 |
+| `baseline` | 0.071 |
+| `prophet` | 0.11 |
+| `arima` | 0.116 |
 
 ## Top roles & top skills (historical shortlist)
 
 These lists are **not** the models' forecast of future popularity. Before forecasting, roles and skills are ranked by **historical posting volume** inside the training window (highest count first); the top K (default 15) become the forecast targets. Every selected model then runs on that same shortlist. Order below = historical volume, not predicted rank.
 
-- **Top roles (historical):** Analyst, Senior Analyst, Data Analyst, Senior Data Analyst, Data Engineer, Database Administrator, Senior Business Analyst, Business Analyst, Lead Data Analyst, Data Entry Clerk, AI Engineer, Data Processor, Credit Risk Manager, AI Security Engineer, Data Quality & BI QA Engineer
-- **Top skills (historical):** SQL, Python, R, Excel, Tableau, Power BI, Looker, DBT, AWS, Google Sheets, Airflow, Snowflake, Azure, Oracle, Jira
+- **Top roles (historical):** Analyst, Data Analyst, Senior Data Analyst, Senior Analyst, Senior Operations Analyst, Data Engineer, AI Engineer, Database Administrator, Business Analyst, Senior Business Analyst, Bioanalyst, Lead Data Analyst, AI Expert, Analytics Manager, Senior Database Administrator
+- **Top skills (historical):** SQL, Python, Excel, Tableau, R, Power BI, Looker, DBT, AWS, Google Sheets, AI, Airflow, Snowflake, Automation, APIs
+
+## Warnings (soft-fail errors)
+
+Individual model/target fits failed; other rows may still be present. The most common cause is **not enough monthly history** for that series.
+
+| Target | Error | Why it matters |
+|--------|-------|----------------|
+| `arima:role:AI Engineer` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:AI Expert` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Analytics Manager` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Bioanalyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Business Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Data Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Data Engineer` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Database Administrator` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Lead Data Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Senior Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Senior Business Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Senior Data Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Senior Database Administrator` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:role:Senior Operations Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:AI Engineer` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:AI Expert` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Analytics Manager` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Bioanalyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Business Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Data Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Data Engineer` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Database Administrator` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Lead Data Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Senior Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Senior Business Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Senior Data Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Senior Database Administrator` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:salary:Senior Operations Analyst` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:AI` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:APIs` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:AWS` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:Airflow` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:Automation` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:DBT` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:Excel` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:Google Sheets` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:Looker` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:Power BI` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:Python` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:R` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:SQL` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:Snowflake` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `arima:skill:Tableau` | Need at least 8 months of history for ARIMA/SARIMA. | Need at least 8 months of history for ARIMA/SARIMA. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:AI Engineer` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:AI Expert` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Analytics Manager` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Bioanalyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Business Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Data Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Data Engineer` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Database Administrator` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Lead Data Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Senior Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Senior Business Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Senior Data Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Senior Database Administrator` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:role:Senior Operations Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:AI Engineer` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:AI Expert` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Analytics Manager` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Bioanalyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Business Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Data Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Data Engineer` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Database Administrator` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Lead Data Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Senior Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Senior Business Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Senior Data Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Senior Database Administrator` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:salary:Senior Operations Analyst` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:AI` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:APIs` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:AWS` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:Airflow` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:Automation` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:DBT` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:Excel` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:Google Sheets` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:Looker` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:Power BI` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:Python` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:R` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:SQL` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:Snowflake` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
+| `prophet:skill:Tableau` | Need at least 6 months of history for Prophet. | Need at least 6 months of history for Prophet. That role/skill/salary series does not span enough months in the training window (common on the database tab when few postings exist yet). Add more postings over time, widen the window if history exists, or choose baseline / models with lower minimums. |
 
 ## Model: `baseline`
 
@@ -38,33 +147,33 @@ Historical snapshot only (not a future forecast): latest count, moving averages,
 
 | Type | Target | Horizon | Period | Value |
 |------|--------|---------|--------|-------|
-| baseline_skill | SQL | 0 | — | 15 |
-| baseline_skill | AWS | 0 | — | 11 |
-| baseline_skill | Python | 0 | — | 10 |
-| baseline_role | Analyst | 0 | — | 7 |
-| baseline_skill | Excel | 0 | — | 6 |
-| baseline_skill | R | 0 | — | 6 |
-| baseline_skill | Power BI | 0 | — | 5 |
-| baseline_skill | DBT | 0 | — | 4 |
-| baseline_role | AI Engineer | 0 | — | 3 |
-| baseline_role | Business Analyst | 0 | — | 3 |
-| baseline_role | Data Analyst | 0 | — | 3 |
-| baseline_role | Data Entry Clerk | 0 | — | 3 |
-| baseline_role | Senior Analyst | 0 | — | 3 |
-| baseline_role | Senior Business Analyst | 0 | — | 3 |
+| baseline_skill | SQL | 0 | — | 23 |
+| baseline_skill | Python | 0 | — | 22 |
+| baseline_skill | Excel | 0 | — | 15 |
+| baseline_skill | R | 0 | — | 8 |
+| baseline_skill | Tableau | 0 | — | 8 |
+| baseline_skill | Power BI | 0 | — | 7 |
+| baseline_role | Analyst | 0 | — | 6 |
+| baseline_skill | Looker | 0 | — | 6 |
+| baseline_skill | AI | 0 | — | 5 |
+| baseline_skill | Automation | 0 | — | 5 |
+| baseline_role | Data Analyst | 0 | — | 4 |
+| baseline_skill | Google Sheets | 0 | — | 4 |
+| baseline_role | Bioanalyst | 0 | — | 3 |
+| baseline_role | Data Engineer | 0 | — | 3 |
 | baseline_role | Senior Data Analyst | 0 | — | 3 |
 | baseline_skill | Airflow | 0 | — | 3 |
-| baseline_skill | Looker | 0 | — | 3 |
 | baseline_skill | Snowflake | 0 | — | 3 |
-| baseline_skill | Tableau | 0 | — | 3 |
-| baseline_role | AI Security Engineer | 0 | — | 2 |
-| baseline_role | Data Processor | 0 | — | 2 |
-| baseline_skill | Google Sheets | 0 | — | 2 |
-| baseline_role | Credit Risk Manager | 0 | — | 1 |
-| baseline_role | Data Engineer | 0 | — | 1 |
-| baseline_role | Data Quality & BI QA Engineer | 0 | — | 1 |
+| baseline_role | Business Analyst | 0 | — | 2 |
+| baseline_role | Senior Analyst | 0 | — | 2 |
+| baseline_role | Senior Business Analyst | 0 | — | 2 |
+| baseline_role | Senior Database Administrator | 0 | — | 2 |
+| baseline_role | Senior Operations Analyst | 0 | — | 2 |
+| baseline_skill | AWS | 0 | — | 2 |
+| baseline_skill | DBT | 0 | — | 2 |
+| baseline_role | AI Engineer | 0 | — | 1 |
+| baseline_role | AI Expert | 0 | — | 1 |
+| baseline_role | Analytics Manager | 0 | — | 1 |
 | baseline_role | Database Administrator | 0 | — | 1 |
 | baseline_role | Lead Data Analyst | 0 | — | 1 |
-| baseline_skill | Azure | 0 | — | 1 |
-| baseline_skill | Jira | 0 | — | 1 |
-| baseline_skill | Oracle | 0 | — | 1 |
+| baseline_skill | APIs | 0 | — | 1 |
